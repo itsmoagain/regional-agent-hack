@@ -1,0 +1,25 @@
+name: Update Regional Caches
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays 06:00 UTC
+jobs:
+  build_caches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install -r requirements.txt
+      - name: Build Hungary cache
+        run: python scripts/build_region_cache.py --region hungary_farmland
+      - name: Build Jamaica cache
+        run: python scripts/build_region_cache.py --region jamaica_coffee
+      - name: Commit cache updates
+        run: |
+          git config user.name "cache-bot"
+          git config user.email "actions@github.com"
+          git add data/*_*/chirps_cached.csv data/*_*/openmeteo_cached.csv data/*_*/era5_recent.csv || true
+          git commit -m "Auto-cache update (Hungary & Jamaica)" || echo "nothing to commit"
+          git push

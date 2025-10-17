@@ -1,0 +1,3 @@
+thresholds:
+  spi30_dry: -1.0
+  spi30_wet: 1.0

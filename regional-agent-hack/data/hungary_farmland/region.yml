@@ -1,0 +1,5 @@
+name: hungary_farmland
+bbox: [16.0, 45.5, 23.0, 48.6]  # lon_min, lat_min, lon_max, lat_max
+start_date: 2019-01-01
+end_date: 2024-12-31
+crop_context: [wheat, maize]

@@ -1,0 +1,11 @@
+xarray==2024.6.0
+pandas==2.2.2
+rioxarray==0.15.5
+xclim==0.45.0
+numpy==1.26.4
+geopandas==0.14.4
+matplotlib==3.8.4
+plotly==5.22.0
+scikit-learn==1.4.2
+codecarbon==2.5.1
+pyyaml==6.0.2
