@@ -1,0 +1,8 @@
+{
+  "title": "Regional Agent Hack Data",
+  "id": "morganurich/regional-agent-hack-data",
+  "licenses": [
+    { "name": "CC0-1.0" }
+  ],
+  "description": "Regional climate agent caches for Hungary farmland and Jamaica coffee. Includes CHIRPS, Open-Meteo, ERA5, and enrichment outputs."
+}
