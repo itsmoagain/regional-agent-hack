@@ -7,29 +7,40 @@ Our pilot demonstrates that **climate intelligence can be both green and grounde
 
 ---
 
-## 💡 Why This Matters
-Climate data is abundant — but actionable context is not. Producers, policymakers, and researchers often work from disjointed sources that aren’t tuned to local conditions or farmer realities.
+## 🧠 Concept Overview
+Each regional agent acts as a **self-contained, evolving climate insight engine**, built around the principle that global climate data should *adapt to place*.  
+The system turns high-volume, high-latency global datasets into *regional learning capsules* — small, fast, transparent models that continuously improve through local enrichment.
 
-*Situated Insight* creates **region-specific “climate distillation engines”** that:
-- Compress global data (like CHIRPS and ERA5) into **lightweight, reproducible local caches**.
-- Fuse those caches with **practice and crop context** for real-time decision support.
-- Operate **entirely on open data and CPU-only compute**, supporting a *Green AI* ethos of efficiency and equity.
+Each capsule follows five core steps:
 
-This bridges two gaps:
-1. **Technical** — enabling low-resource regions to access climate analytics.  
-2. **Ethical** — prioritizing transparency, reproducibility, and inclusion in AI-enabled adaptation.
+1. **Data Distillation** – Convert terabyte-scale sources (CHIRPS, ERA5, MODIS) into lightweight local datasets.  
+2. **Feature Computation** – Extract interpretable signals (SPI, GDD, NDVI, VPD) that directly reflect field conditions.  
+3. **Context Fusion** – Blend those signals with regional or crop-specific data for grounded analysis.  
+4. **Random Forest Modelling** – Train region-tuned ensemble models that capture local climate–crop dynamics and can be recombined into a *global mesh of interpretable regional models*.  
+5. **Agent Reasoning & Insight Feed** – Translate outputs into contextual summaries and threshold-based alerts — usable by cooperatives, dashboards, or DAO networks.
+
+Together, these local engines form a **“mosaic” of regional intelligence** — a decentralized climate-learning network that grows by recombining local models, rather than scaling centralized compute.
 
 ---
 
-## 🧠 Concept Overview
-Each regional agent acts as a **self-contained insight engine**, built around:
-1. **Data Distillation** – Aggregate and downscale rainfall, temperature, and reanalysis data.  
-2. **Feature Computation** – Compute drought, heat, and growth indicators (SPI, GDD, VPD, NDVI trends).  
-3. **Context Fusion** – Join these indicators with soil, crop, or practice logs.  
-4. **Rule-Based Reasoning** – Derive interpretable, traceable recommendations.  
-5. **Green AI Metrics** – Log runtime, data volume, and CO₂ footprint per run.  
+## ♻️ Green AI Design
+Green AI here doesn’t just mean *energy efficient*.  
+It means **computationally regenerative** — maximizing insight per watt, per byte, per decision.  
+The system’s design reduces both *climate modeling waste* and *decision latency* through three interlocking strategies:
 
-The result is a portable, inspectable regional model — a local climate “capsule” that can be shared, compared, and extended.
+1. **Local Distillation for Global Efficiency**  
+   → Instead of repeatedly processing petabytes of reanalysis data, each region runs a one-time distillation — caching rainfall, temperature, and NDVI locally in compact, open formats (CSV/Zarr).  
+   → This creates “climate slides” that can be reused, versioned, and extended across years or projects without rerunning full downloads.
+
+2. **Composable Regional Models**  
+   → Random Forests trained in each region are small enough to run on CPUs, yet collectively form a *distributed ensemble* — a green, federated alternative to energy-hungry large models.  
+   → They can be merged, compared, or retrained incrementally to build a global climate-learning network without centralized compute or cloud lock-in.
+
+3. **Human–Machine Efficiency Loop**  
+   → Every model serves a *decision-support function* — not abstract prediction.  
+   → Farmers, DAOs, or research networks get immediate insight: “this rainfall anomaly aligns with below-normal NDVI recovery,” creating feedback that improves adaptation strategies *and* future training data.
+
+The result is a system that turns global climate data into *regional intelligence assets* — **small, composable, human-useful models that waste nothing**: not data, not compute, not insight.
 
 ---
 
@@ -40,7 +51,21 @@ The result is a portable, inspectable regional model — a local climate “caps
 | 🇭🇺 **Hungary Farmland** | Temperate, mixed cropping | Climate variability and soil moisture response |
 | 🇯🇲 **Jamaica Coffee Belt** | Tropical, high-elevation | Shade dynamics and rainfall anomalies |
 
-Each region’s cache is versioned independently, showing how **one framework can serve many ecosystems** — from arid grains to cloud-forest coffee.
+---
+
+## 🌐 Regional Insight Mesh
+The long-term vision is a **network of regional agents**, each acting as a “climate node” trained on localized data, yet interoperable through shared metadata and features.
+
+- Each region distills global datasets into its own **climate cache** — CHIRPS rainfall, ERA5 reanalysis, NDVI composites, and local context.  
+- Each cache trains its own lightweight Random Forest model, producing interpretable regional logic.  
+- These regional models can then be **linked or aggregated** into a *global insight mesh* — a distributed knowledge fabric that learns through connection and reuse.  
+
+This architecture enables:
+- **Energy reduction** through one-time regional computation and long-term reuse.  
+- **Participatory enrichment** by allowing cooperatives and researchers to contribute local data or retraining triggers.  
+- **Interoperability** between models, where shared climate and practice features can be queried like microservices.  
+
+The mesh expands through regional connection and reuse, forming a **planetary network of small, efficient climate AIs** whose combined insight grows with every new region added.
 
 ---
 
@@ -53,27 +78,6 @@ Each region’s cache is versioned independently, showing how **one framework ca
       v                           v
  [Crop & Soil Data] --> [Agent Reasoning] --> [Insight Cards / Emissions Log]
 
-All steps run offline or in GitHub Actions, ensuring reproducibility and low energy cost.
-
----
-
-## ♻️ Green AI Design
-- **CPU-only computation** — no GPUs, no external APIs during inference.  
-- **Energy and CO₂ logging** via [CodeCarbon](https://mlco2.github.io/codecarbon/).  
-- **Version-locked pipelines** for full transparency and reproducibility.  
-- **Dual-region reproducibility** — Hungary and Jamaica run identical workflows, proving generality.  
-
----
-
-## 🧰 Technical Stack
-| Layer | Function | Key Tools |
-|--------|-----------|-----------|
-| Data Distillation | Aggregate & clean | `xarray`, `rioxarray`, `pandas` |
-| Feature Extraction | SPI, GDD, NDVI, anomalies | `numpy`, `climate-indices` |
-| Rule Engine | Human-readable logic | `yaml`, `pandas` |
-| Emissions Tracking | CO₂eq + runtime logs | `codecarbon` |
-| Visualization | Insight charts | `plotly`, `matplotlib` |
-
 ---
 
 ## 🧭 Setup & Reproducibility
@@ -84,32 +88,6 @@ python scripts/build_region_cache.py --region hungary_farmland --track
 
 > Recommended Python version: **3.12.x**  
 > Compatible with Kaggle and GitHub Actions runners.
-
----
-
-## 🕒 Automated Workflows
-| Workflow | Function | Trigger |
-|-----------|-----------|----------|
-| **cache.yml** | Refresh regional CHIRPS / ERA5 / Open-Meteo caches | Weekly (auto) |
-| **kaggle_export.yml** | Package data snapshots for leaderboard | Manual |
-| **training.yml** | Retrain Random Forests on enriched data | Monthly (optional) |
-
----
-
-## 📦 Outputs
-Each region produces:
-- `chirps_cached.csv` — Daily rainfall  
-- `openmeteo_cached.csv` — Temperature and RH  
-- `era5_recent.csv` — Short-term context  
-- `cache_manifest.json` — Runtime, size, emissions  
-- (Optional) `emissions.csv` — Energy log for Green AI report  
-
----
-
-## 🪴 Broader Vision
-*Situated Insight* is a step toward **participatory, distributed climate intelligence** — where farmers and cooperatives co-own their data and regional models, rather than consuming top-down analytics.
-
-This prototype shows that **insight can be small, local, and open — without sacrificing rigor or transparency.**
 
 ---
 
