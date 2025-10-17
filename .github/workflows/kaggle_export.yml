@@ -1,21 +1,42 @@
-name: Prepare Kaggle Export
+name: Export to Kaggle Dataset
 on:
   workflow_dispatch:
+
 jobs:
   export:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - run: pip install -r requirements.txt
-      - name: Prep dataset bundle
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install kaggle
+
+      - name: Prepare dataset bundle
         run: python scripts/prep_kaggle_export.py
-      - name: Archive data
+
+      - name: Archive data folder
         run: zip -r kaggle_data_bundle.zip data
-      - name: Upload artifact
+
+      - name: Upload artifact (backup copy)
         uses: actions/upload-artifact@v4
         with:
           name: kaggle_data_bundle
           path: kaggle_data_bundle.zip
+
+      - name: Upload to Kaggle Dataset
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          mkdir -p ~/.kaggle
+          echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+          kaggle datasets version -p data -m "Auto export from GitHub Actions" --dir-mode zip --quiet
