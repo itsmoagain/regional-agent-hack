@@ -1,0 +1,44 @@
+{
+  "region": "austin_farmland",
+  "records_daily": 730,
+  "records_monthly": 24,
+  "frequency": "daily",
+  "provenance": {
+    "precip_mm_sum": {
+      "fill_method": "linear",
+      "max_gap_days": 3
+    },
+    "soil_surface_moisture": {
+      "fill_method": "linear",
+      "max_gap_days": 3
+    },
+    "soil_rootzone_moisture": {
+      "fill_method": "linear",
+      "max_gap_days": 3
+    },
+    "ndvi": {
+      "fill_method": "ffill",
+      "note": "held constant between observations"
+    },
+    "t2m_mean": {
+      "fill_method": "linear",
+      "max_gap_days": 3
+    },
+    "t2m_max": {
+      "fill_method": "linear",
+      "max_gap_days": 3
+    },
+    "t2m_min": {
+      "fill_method": "linear",
+      "max_gap_days": 3
+    }
+  },
+  "anomaly_computation": {
+    "window_days": 30,
+    "columns_processed": 7,
+    "date_range": [
+      "2019-01-02",
+      "2020-12-31"
+    ]
+  }
+}

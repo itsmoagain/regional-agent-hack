@@ -1,75 +1,197 @@
-import os
-import time
-import json
-import datetime
+#!/usr/bin/env python3
+"""
+Build region cache by merging all fetcher outputs (CHIRPS, SMAP, NDVI, ERA5)
+into unified daily and monthly CSVs, with mixed-granularity alignment.
+
+Outputs:
+- data/<region>/daily_merged.csv
+- data/<region>/monthly_merged.csv
+- data/<region>/metadata.json
+"""
+
+import argparse
 import pandas as pd
 from pathlib import Path
+import json
+import subprocess
+import sys
+import yaml
 
-# Optional imports – your existing fetchers should already exist
-from fetch_chirps import fetch_chirps
-from fetch_openmeteo import fetch_openmeteo
-from fetch_era5_recent import fetch_era5_recent
+# ------------------------------------------------------------
+# Ensure local dependencies before proceeding
+# ------------------------------------------------------------
+required = ["pandas", "pyyaml", "requests"]
+missing = []
+for pkg in required:
+    try:
+        __import__(pkg)
+    except ImportError:
+        missing.append(pkg)
 
-def log(msg: str):
-    """Simple timestamped logger."""
-    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{now} UTC] {msg}", flush=True)
+if missing:
+    print(f"📦 Installing missing dependencies for cache builder: {', '.join(missing)}")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", *missing])
+else:
+    print("✅ Dependencies ready inside virtual environment.")
 
-def file_summary(path):
-    """Return short size summary if file exists."""
-    if os.path.exists(path):
-        size_mb = os.path.getsize(path) / (1024 * 1024)
-        return f"{size_mb:.2f} MB"
-    return "missing"
+# ------------------------------------------------------------
+# Helper: load CSVs
+# ------------------------------------------------------------
+def load_csv(path: Path, name: str) -> pd.DataFrame:
+    print(f"📥 Loading {name} from {path}")
+    return pd.read_csv(path, parse_dates=["date"])
 
-def build_region_cache(region_name: str):
-    start = time.time()
-    region_path = Path("data") / region_name
-    region_path.mkdir(parents=True, exist_ok=True)
+# ------------------------------------------------------------
+# Helper: load bbox from region YAML
+# ------------------------------------------------------------
+def load_bbox_from_yaml(region: str):
+    """Load bounding box from region YAML config."""
+    cfg_path = Path("config") / f"insight.{region}.yml"
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Missing region config: {cfg_path}")
+    with open(cfg_path, "r") as f:
+        cfg = yaml.safe_load(f)
+    bbox = cfg.get("region_meta", {}).get("bbox") or []
+    if not bbox or len(bbox) != 4:
+        raise ValueError(f"Invalid bbox in config: {bbox}")
+    return bbox
 
-    log(f"=== Starting cache build for {region_name} ===")
+# ------------------------------------------------------------
+# Harmonize to daily grid (mixed-granularity)
+# ------------------------------------------------------------
+def harmonize_to_daily(dfs: dict) -> tuple[pd.DataFrame, dict]:
+    """Align mixed-frequency variables to common daily grid while preserving fidelity."""
+    start = max(df["date"].min() for df in dfs.values())
+    end = min(df["date"].max() for df in dfs.values())
+    daily_index = pd.date_range(start, end, freq="D")
 
-    # --- 1️⃣ CHIRPS ---
-    log("Fetching CHIRPS rainfall data…")
-    chirps_path = region_path / "chirps_cached.csv"
-    fetch_chirps(region_name, output_path=chirps_path)
-    log(f"✅ CHIRPS done → {file_summary(chirps_path)}")
+    out_df = pd.DataFrame({"date": daily_index})
+    provenance = {}
 
-    # --- 2️⃣ Open-Meteo ---
-    log("Fetching Open-Meteo temperature/RH data…")
-    meteo_path = region_path / "openmeteo_cached.csv"
-    fetch_openmeteo(region_name, output_path=meteo_path)
-    log(f"✅ Open-Meteo done → {file_summary(meteo_path)}")
+    for var, df in dfs.items():
+        df = df.copy()
+        df["date"] = pd.to_datetime(df["date"])
+        df = df[(df["date"] >= start) & (df["date"] <= end)]
+        df = df.set_index("date").sort_index()
+        col = [c for c in df.columns if var in c or var.replace("_mean", "") in c]
+        col = col[0] if col else df.columns[-1]
+        df = df[[col]].rename(columns={col: var})
+        df = df.reindex(daily_index)
 
-    # --- 3️⃣ ERA5 Recent ---
-    log("Fetching ERA5 short-term context…")
-    era5_path = region_path / "era5_recent.csv"
-    fetch_era5_recent(region_name, output_path=era5_path)
-    log(f"✅ ERA5 done → {file_summary(era5_path)}")
+        if var.startswith(("precip", "t2m", "soil_")):
+            df[var] = df[var].interpolate(limit=3, limit_direction="both")
+            provenance[var] = {"fill_method": "linear", "max_gap_days": 3}
+        elif "ndvi" in var.lower():
+            df[var] = df[var].ffill().bfill()
+            provenance[var] = {"fill_method": "ffill", "note": "held constant between observations"}
+        else:
+            provenance[var] = {"fill_method": "none"}
 
-    elapsed = time.time() - start
-    log(f"🏁 Finished {region_name} in {elapsed/60:.1f} min")
+        out_df = out_df.merge(df[var], left_on="date", right_index=True, how="left")
+        print(f"🔗 Merged {var} → {len(df)} rows")
 
-    # --- 4️⃣ Write manifest for reproducibility ---
-    manifest = {
-        "region": region_name,
-        "generated_utc": datetime.datetime.utcnow().isoformat(),
-        "files": {
-            "chirps_cached.csv": file_summary(chirps_path),
-            "openmeteo_cached.csv": file_summary(meteo_path),
-            "era5_recent.csv": file_summary(era5_path)
-        },
-        "runtime_minutes": round(elapsed / 60, 2)
+    return out_df.reset_index(drop=True), provenance
+
+# ------------------------------------------------------------
+# Main build
+# ------------------------------------------------------------
+def build_region_cache(region: str):
+    base = Path("data") / region
+    if not base.exists():
+        raise FileNotFoundError(f"Region folder not found: {base}")
+
+    valid_files = {
+        "precip_mm_sum": "chirps_gee.csv",
+        "soil_surface_moisture": "soil_gee.csv",
+        "soil_rootzone_moisture": "soil_gee.csv",
+        "ndvi": "ndvi_gee.csv",
+        "t2m_mean": "openmeteo.csv",
+        "t2m_max": "openmeteo.csv",
+        "t2m_min": "openmeteo.csv",
     }
-    with open(region_path / "cache_manifest.json", "w") as f:
-        json.dump(manifest, f, indent=2)
 
-    log(f"📦 Wrote manifest → {region_path / 'cache_manifest.json'}")
-    log(f"=== Cache build complete for {region_name} ===\n")
+    dfs = {}
+    for var, fname in valid_files.items():
+        fp = base / fname
+        if fp.exists():
+            dfs[var] = load_csv(fp, fname)
+        else:
+            print(f"⚠️ Missing fetcher file for {var}: {fname}")
 
+    # ------------------------------------------------------------
+    # Auto-fetch missing datasets if needed
+    # ------------------------------------------------------------
+    if not dfs:
+        print(f"⚠️ No valid fetcher files found for region {region}. Attempting to auto-fetch...")
+        bbox = load_bbox_from_yaml(region)
+        required = {
+            "chirps_gee.csv": "scripts/fetch_chirps.py",
+            "soil_gee.csv": "scripts/fetch_soil.py",
+            "ndvi_gee.csv": "scripts/fetch_ndvi.py",
+            "openmeteo.csv": "scripts/fetch_openmeteo.py",
+        }
+
+        for file, fetcher in required.items():
+            target = base / file
+            if not target.exists() and Path(fetcher).exists():
+                print(f"🌍 Fetching missing dataset: {file}")
+                try:
+                    subprocess.run(
+                        [
+                            sys.executable, fetcher,
+                            "--bbox", *map(str, bbox),
+                            "--out", str(target)
+                        ],
+                        check=True
+                    )
+                except Exception as e:
+                    print(f"⚠️ Auto-fetch for {file} failed: {e}")
+
+        # Try reloading after fetch
+        for var, fname in valid_files.items():
+            fp = base / fname
+            if fp.exists():
+                dfs[var] = load_csv(fp, fname)
+
+        if not dfs:
+            raise RuntimeError(f"No valid fetcher files found for region {region} after auto-fetch attempts")
+
+    # ------------------------------------------------------------
+    # Continue normal processing
+    # ------------------------------------------------------------
+    out_df, provenance = harmonize_to_daily(dfs)
+
+    daily_out = base / "daily_merged.csv"
+    out_df.to_csv(daily_out, index=False)
+    print(f"✅ Saved daily merged → {daily_out.name} ({len(out_df)} rows)")
+
+    out_df["year"], out_df["month"] = out_df["date"].dt.year, out_df["date"].dt.month
+    agg_map = {c: ("sum" if c.startswith("precip") else "mean")
+               for c in out_df.columns if c not in ["date", "year", "month"]}
+    monthly = out_df.groupby(["year", "month"]).agg(agg_map).reset_index()
+    monthly["date"] = pd.to_datetime(monthly[["year", "month"]].assign(day=1))
+    monthly = monthly[["date"] + [c for c in monthly.columns if c not in ("year", "month", "date")]]
+    monthly_out = base / "monthly_merged.csv"
+    monthly.to_csv(monthly_out, index=False)
+    print(f"✅ Saved monthly merged → {monthly_out.name} ({len(monthly)} rows)")
+
+    meta = {
+        "region": region,
+        "records_daily": len(out_df),
+        "records_monthly": len(monthly),
+        "frequency": "daily",
+        "provenance": provenance,
+    }
+    with open(base / "metadata.json", "w") as f:
+        json.dump(meta, f, indent=2)
+    print(f"🧭 Metadata saved → metadata.json")
+    print(f"🎉 Build complete for region {region}.")
+
+# ------------------------------------------------------------
+# Entrypoint
+# ------------------------------------------------------------
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--region", required=True, help="Region folder name")
+    parser = argparse.ArgumentParser(description="Build region cache from fetcher outputs.")
+    parser.add_argument("--region", required=True)
     args = parser.parse_args()
     build_region_cache(args.region)

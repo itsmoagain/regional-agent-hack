@@ -1,0 +1,12 @@
+{
+  "region": "hungary_farmland",
+  "tier": 2,
+  "target": "ndvi_zscore",
+  "timestamp": "20251027T144236Z",
+  "records": 22,
+  "metrics": {
+    "r2": 0.931,
+    "mae": 0.174,
+    "rmse": 0.182
+  }
+}
