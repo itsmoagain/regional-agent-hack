@@ -6,7 +6,7 @@ Usage:
   python scripts/train_region_model.py --region austin_farmland --tier 2 --freq daily --target ndvi_zscore
 
 Inputs:
-  - data/<region>/insights_<freq>.csv   (daily or monthly)
+  - data/<region>/current/insights_<freq>.csv   (daily or monthly)
   - Optional: phenology.csv, practice_logs.csv, rags.csv, context_layers/
 Outputs (created under models/<region>/):
   - tier{tier}_{freq}_model.pkl
@@ -26,7 +26,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 from agent.features.builder import build_features
-from _shared import ensure_region_workspace
+from _shared import ensure_region_workspace, get_region_current_dir
 
 # ------------------------------------------------------------
 # Helper: compute evaluation metrics
@@ -51,7 +51,7 @@ def compute_metrics(y_true, y_pred):
 # Main training function
 # ------------------------------------------------------------
 def train_region_model(region: str, tier: int = 1, target: str = "ndvi_zscore", freq: str = "monthly"):
-    region_path = Path("data") / region
+    region_path = get_region_current_dir(region)
     model_dir = Path("models") / region
     model_dir.mkdir(parents=True, exist_ok=True)
     workspace = ensure_region_workspace(region)

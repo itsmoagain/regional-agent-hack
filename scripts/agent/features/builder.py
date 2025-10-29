@@ -2,7 +2,7 @@
 """
 Feature builder for Regional Climate Agent models.
 
-Inputs (auto-detected if present under data/<region>/):
+Inputs (auto-detected if present under data/<region>/current/):
   - insight_monthly.csv         ← harmonized base
   - phenology.csv               ← phenology stage data (optional)
   - practices_logs.csv          ← management logs (optional)
@@ -14,9 +14,12 @@ Outputs:
   - target series (y)
 """
 
-import pandas as pd
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from _shared import get_region_current_dir
 
 
 # ------------------------------------------------------------
@@ -136,7 +139,7 @@ def build_features(region: str, tier: int = 1, insight_file: Path | str | None =
         ``ndvi_zscore`` if present.
     """
 
-    region_path = Path("data") / region
+    region_path = get_region_current_dir(region)
     if insight_file is None:
         insight_file = region_path / "insights_monthly.csv"
         if not insight_file.exists():
