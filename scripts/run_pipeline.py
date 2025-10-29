@@ -1,4 +1,151 @@
 #!/usr/bin/env python3
+"""Unified entry point for the regional insights pipeline."""
+from __future__ import annotations
+
+import argparse
+import importlib
+import os
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Iterable, Optional, Sequence, Tuple
+
+# ---------------------------------------------------------------------------
+# Dependency helper
+# ---------------------------------------------------------------------------
+
+def require(pkg: str, import_name: Optional[str] = None):
+    """Import *pkg*, installing it on-demand when permitted.
+
+    Parameters
+    ----------
+    pkg:
+        Name passed to ``pip install`` when the import fails.
+    import_name:
+        Module name to import via :func:`importlib.import_module`.  When not
+        provided the value of ``pkg`` is used.
+
+    Returns
+    -------
+    module or ``None``
+        The imported module object.  ``None`` is returned when the dependency is
+        missing and ``OFFLINE_MODE=1`` has been set in the environment.
+    """
+
+    module_name = import_name or pkg
+    try:
+        return importlib.import_module(module_name)
+    except ImportError:
+        if os.environ.get("OFFLINE_MODE") == "1":
+            print(f"⚠️ Offline mode: '{pkg}' not installed, skipping auto-install.")
+            return None
+
+        print(f"📦 Installing missing dependency: {pkg}")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+        except subprocess.CalledProcessError as exc:
+            print(f"❌ Failed to install '{pkg}': {exc}")
+            return None
+        _log_auto_install(pkg)
+        return importlib.import_module(module_name)
+
+
+_RUNTIME_LOG = Path(__file__).resolve().parents[1] / ".runtime_log.txt"
+
+
+def _log_auto_install(pkg: str) -> None:
+    """Record auto-installed packages for observability."""
+
+    try:
+        timestamp = datetime.utcnow().isoformat()
+        with _RUNTIME_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(f"{timestamp}\t{pkg}\n")
+    except Exception:
+        # Logging should never block the pipeline – ignore filesystem errors.
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Pipeline orchestration helpers
+# ---------------------------------------------------------------------------
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = Path(__file__).resolve().parent
+
+# The core libraries required by downstream scripts.  The tuple structure is
+# (package-name, import-name).
+ESSENTIAL_PACKAGES: Tuple[Tuple[str, Optional[str]], ...] = (
+    ("pyyaml", "yaml"),
+    ("pandas", None),
+    ("numpy", None),
+    ("requests", None),
+    ("folium", None),
+    ("matplotlib", None),
+    ("scikit-learn", None),
+    ("joblib", None),
+    ("earthengine-api", "ee"),
+)
+
+
+def bootstrap_dependencies(packages: Iterable[Tuple[str, Optional[str]]]) -> list[str]:
+    """Ensure that all required dependencies are present.
+
+    Returns a list of packages that are still missing (usually because the
+    environment is offline).
+    """
+
+    missing: list[str] = []
+    for pkg, import_name in packages:
+        module = require(pkg, import_name)
+        if module is None:
+            missing.append(pkg)
+    if missing:
+        if os.environ.get("OFFLINE_MODE") == "1":
+            print(
+                "⚠️ Some dependencies could not be installed in offline mode: "
+                + ", ".join(missing)
+            )
+        else:
+            # ``require`` should have installed all dependencies already.  If we
+            # still have missing entries it means pip failed and raised
+            # ``ImportError`` again.  Surface a friendly error.
+            raise RuntimeError(
+                "Unable to import required packages: " + ", ".join(missing)
+            )
+    else:
+        print("✅ All pipeline dependencies available.")
+    return missing
+
+
+def build_command(script: str, *args: str) -> Sequence[str]:
+    """Construct a Python command that reuses the current interpreter."""
+
+    script_path = SCRIPTS_DIR / script
+    if not script_path.exists():
+        raise FileNotFoundError(f"Pipeline script missing: {script_path}")
+    return (sys.executable, str(script_path), *args)
+
+
+def run_step(name: str, command: Sequence[str], allow_failure: bool = False) -> None:
+    """Execute a pipeline step with helpful console output."""
+
+    print(f"\n🚀 {name}")
+    print("   " + " ".join(command))
+    try:
+        subprocess.check_call(command, cwd=str(ROOT))
+        print(f"✅ {name} complete.")
+    except subprocess.CalledProcessError as exc:
+        if allow_failure:
+            print(f"⚠️ {name} failed (allow-stale enabled): {exc}")
+        else:
+            raise
+
+
+def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the regional insights pipeline.")
+    parser.add_argument("--region", help="Region slug to operate on (e.g. hungary_farmland)")
+"""Unified regional pipeline runner with explicit online/offline modes."""
 """Convenient entry point for running the full regional pipeline.
 
 Example
@@ -20,6 +167,374 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Dict, Iterable, List, Literal, Optional
+
+from _shared import (
+    get_region_cache_dir,
+    get_region_current_dir,
+    load_layer_registry,
+    load_region_profile,
+)
+from regional_agent.config import LayerSpec
+from regional_agent.pipeline.fetchers import run_fetcher
+
+MODE = Literal["analyze", "bootstrap", "refresh"]
+
+
+@dataclass
+class LayerState:
+    spec: LayerSpec
+    path: Path
+    entry: Optional[Dict[str, object]]
+    fetched_at: Optional[datetime]
+    expires_at: Optional[datetime]
+    age_days: Optional[float]
+    expired: bool
+    exists: bool
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Regional insight pipeline")
+    parser.add_argument("--region", required=True, help="Region key (e.g. austin_farmland)")
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument("--bootstrap", action="store_true", help="Fetch all required layers from scratch")
+    mode_group.add_argument("--refresh", action="store_true", help="Refresh layers whose TTL has expired")
+    mode_group.add_argument("--analyze", action="store_true", help="Analyze using only cached data (default)")
+    parser.add_argument("--allow-stale", action="store_true", help="Permit using expired caches without refreshing")
+    parser.add_argument(
+        "--max-staleness",
+        type=int,
+        help="Fail if any required layer is older than this many days",
+    )
+    return parser.parse_args()
+
+
+def determine_mode(args: argparse.Namespace) -> MODE:
+    if args.bootstrap:
+        return "bootstrap"
+    if args.refresh:
+        return "refresh"
+    return "analyze"
+
+
+def parse_iso(value: str | None) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        if value.endswith("Z"):
+            return datetime.fromisoformat(value[:-1]).replace(tzinfo=timezone.utc)
+        dt = datetime.fromisoformat(value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+
+def build_layer_state(
+    spec: LayerSpec,
+    entry: Optional[Dict[str, object]],
+    current_path: Path,
+    now: datetime,
+) -> LayerState:
+    fetched_at = parse_iso(entry.get("fetched_at")) if entry else None
+    if fetched_at is None and current_path.exists():
+        fetched_at = datetime.fromtimestamp(current_path.stat().st_mtime, tz=timezone.utc)
+
+    expires_at = parse_iso(entry.get("expires_at")) if entry else None
+    if expires_at is None and fetched_at is not None:
+        expires_at = fetched_at + timedelta(days=spec.ttl_days)
+
+    age_days = None
+    if fetched_at is not None:
+        age_days = (now - fetched_at).total_seconds() / 86400
+
+    expired = bool(expires_at and expires_at <= now)
+
+    return LayerState(
+        spec=spec,
+        path=current_path,
+        entry=entry,
+        fetched_at=fetched_at,
+        expires_at=expires_at,
+        age_days=age_days,
+        expired=expired,
+        exists=current_path.exists(),
+    )
+
+
+def load_manifest(path: Path) -> Dict[str, object]:
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+
+def layer_entries_by_file(manifest: Dict[str, object]) -> Dict[str, Dict[str, object]]:
+    result: Dict[str, Dict[str, object]] = {}
+    for entry in manifest.get("layers", []):
+        cache_file = entry.get("cache_file")
+        if cache_file:
+            result[cache_file] = entry
+    return result
+
+
+def summarize_state(state: LayerState, now: datetime) -> str:
+    if not state.exists:
+        if state.spec.required:
+            return "❌ missing"
+        return "⚠️ optional missing"
+    if state.age_days is None:
+        return "ℹ️ age unknown"
+    ttl = state.spec.ttl_days
+    age_str = f"{state.age_days:.1f}d (TTL {ttl})"
+    if state.expired:
+        return f"⚠️ {age_str} → stale"
+    return f"✅ {age_str}"
+
+
+def check_staleness(
+    states: Iterable[LayerState],
+    *,
+    allow_stale: bool,
+    max_staleness: Optional[int],
+    mode: MODE,
+) -> None:
+    violations: List[str] = []
+    for state in states:
+        if not state.exists and state.spec.required:
+            violations.append(f"Required layer '{state.spec.name}' is missing")
+            continue
+        if state.age_days is None:
+            continue
+        if max_staleness is not None and state.age_days > max_staleness and state.spec.required:
+            violations.append(
+                f"Layer '{state.spec.name}' is {state.age_days:.1f} days old (> {max_staleness} days max)"
+            )
+        if mode == "analyze" and state.expired and state.spec.required and not allow_stale:
+            violations.append(
+                f"Layer '{state.spec.name}' is stale ({state.age_days:.1f} days) — rerun with --refresh or --allow-stale"
+            )
+    if violations:
+        raise SystemExit("\n".join(violations))
+
+
+def compute_file_stats(path: Path) -> Dict[str, object]:
+    import hashlib
+
+    data = path.read_bytes()
+    rows = 0
+    if path.suffix == ".csv" and path.stat().st_size:
+        with path.open("r", encoding="utf-8") as fh:
+            rows = sum(1 for _ in fh) - 1
+            if rows < 0:
+                rows = 0
+    return {
+        "bytes": path.stat().st_size,
+        "hash": hashlib.sha256(data).hexdigest(),
+        "rows": rows,
+    }
+
+
+def ensure_snapshot_dir(region: str, now: datetime) -> Path:
+    caches_dir = get_region_cache_dir(region)
+    ts = now.strftime("%Y%m%dT%H%M%SZ")
+    candidate = caches_dir / ts
+    suffix = 1
+    while candidate.exists():
+        candidate = caches_dir / f"{ts}_{suffix}"
+        suffix += 1
+    candidate.mkdir(parents=True, exist_ok=True)
+    return candidate
+
+
+def copy_previous_layer(
+    source_dirs: List[Path],
+    destination: Path,
+) -> bool:
+    for base in source_dirs:
+        candidate = base / destination.name
+        if candidate.exists():
+            shutil.copy2(candidate, destination)
+            return True
+    return False
+
+
+def update_current_view(region: str, snapshot_dir: Path) -> Path:
+    current_dir = get_region_current_dir(region)
+    tmp_dir = current_dir.parent / "_current_tmp"
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+    shutil.copytree(snapshot_dir, tmp_dir, dirs_exist_ok=True)
+    if current_dir.exists():
+        shutil.rmtree(current_dir)
+    tmp_dir.rename(current_dir)
+    return current_dir
+
+
+def write_manifest(
+    snapshot_dir: Path,
+    *,
+    region: str,
+    mode: MODE,
+    created_at: datetime,
+    entries: List[Dict[str, object]],
+) -> Path:
+    manifest = {
+        "region": region,
+        "mode": mode,
+        "created_at": created_at.isoformat() + "Z",
+        "snapshot": snapshot_dir.name,
+        "layers": entries,
+    }
+    manifest_path = snapshot_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2))
+    return manifest_path
+
+
+def run_offline_steps(region: str) -> None:
+    commands = [
+        [sys.executable, "scripts/build_region_cache.py", "--region", region],
+        [sys.executable, "scripts/build_region_insights.py", "--region", region],
+        [sys.executable, "scripts/compute_anomalies.py", "--region", region, "--plot-format", "png"],
+        [sys.executable, "scripts/build_training_window.py", "--region", region],
+    ]
+    for cmd in commands:
+        print(f"➡️  Running {' '.join(cmd)}")
+        try:
+            subprocess_env = os.environ.copy()
+            subprocess_env.setdefault("PYTHONUNBUFFERED", "1")
+            subprocess_env.setdefault("OFFLINE_MODE", os.environ.get("OFFLINE_MODE", "0"))
+            subprocess.run(cmd, check=True, env=subprocess_env)
+        except subprocess.CalledProcessError as exc:
+            print(f"⚠️  Step failed ({' '.join(cmd)}): {exc}")
+            break
+
+
+def main() -> None:
+    args = parse_args()
+    mode = determine_mode(args)
+
+    if mode == "analyze":
+        os.environ["OFFLINE_MODE"] = "1"
+    else:
+        os.environ.pop("OFFLINE_MODE", None)
+
+    now = datetime.utcnow().replace(tzinfo=timezone.utc)
+    region = args.region
+
+    print(f"🛰  Running pipeline for {region} in {mode.upper()} mode")
+
+    profile = load_region_profile(region)
+    bbox = profile.get("region_meta", {}).get("bbox")
+    if not bbox or len(bbox) != 4:
+        raise SystemExit("Region profile missing bbox coordinates")
+
+    registry = load_layer_registry(region)
+    current_dir = get_region_current_dir(region)
+    manifest_path = current_dir / "manifest.json"
+    manifest = load_manifest(manifest_path)
+    entry_by_file = layer_entries_by_file(manifest)
+
+    previous_snapshot = manifest.get("snapshot") if isinstance(manifest, dict) else None
+    previous_dirs: List[Path] = []
+    if previous_snapshot:
+        previous_dir = get_region_cache_dir(region) / str(previous_snapshot)
+        if previous_dir.exists():
+            previous_dirs.append(previous_dir)
+    if current_dir.exists():
+        previous_dirs.append(current_dir)
+
+    states: List[LayerState] = []
+    for spec in registry.values():
+        state = build_layer_state(
+            spec,
+            entry_by_file.get(spec.cache_file),
+            current_dir / spec.cache_file,
+            now,
+        )
+        print(f" • {spec.name}: {summarize_state(state, now)}")
+        states.append(state)
+
+    check_staleness(states, allow_stale=args.allow_stale, max_staleness=args.max_staleness, mode=mode)
+
+    if mode == "analyze":
+        run_offline_steps(region)
+        return
+
+    snapshot_dir = ensure_snapshot_dir(region, now)
+    manifest_entries: List[Dict[str, object]] = []
+
+    for state in states:
+        destination = snapshot_dir / state.spec.cache_file
+        should_fetch = False
+        if mode == "bootstrap":
+            should_fetch = state.spec.required or not state.exists
+            if state.expired and not args.allow_stale:
+                should_fetch = True
+        else:  # refresh
+            if not state.exists:
+                should_fetch = True
+            elif state.expired and not args.allow_stale:
+                should_fetch = True
+
+        metadata: Dict[str, object]
+        provenance: Dict[str, str] | None = None
+
+        if should_fetch:
+            print(f"🌐 Fetching {state.spec.name} via {state.spec.fetcher}")
+            provenance = run_fetcher(
+                state.spec,
+                mode="bootstrap" if mode == "bootstrap" else "refresh",
+                destination=destination,
+                bbox=bbox,
+            )
+            fetched_at = now
+        else:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            copied = copy_previous_layer(previous_dirs, destination)
+            if not copied:
+                if state.spec.required:
+                    raise SystemExit(f"No cached data available for required layer '{state.spec.name}'")
+                else:
+                    print(f"⚠️  Optional layer '{state.spec.name}' missing; skipping")
+                    continue
+            fetched_at = state.fetched_at or now
+
+        metadata = compute_file_stats(destination)
+        expires_at = fetched_at + timedelta(days=state.spec.ttl_days)
+
+        entry = {
+            "layer": state.spec.name,
+            "cache_file": state.spec.cache_file,
+            "fetcher": state.spec.fetcher,
+            "ttl_days": state.spec.ttl_days,
+            "required": state.spec.required,
+            "fetched": should_fetch,
+            "fetched_at": fetched_at.isoformat() + "Z",
+            "expires_at": expires_at.isoformat() + "Z",
+            "source_url": state.spec.source_url,
+            **metadata,
+        }
+        if provenance:
+            entry["provenance"] = provenance
+        manifest_entries.append(entry)
+
+    manifest_path = write_manifest(snapshot_dir, region=region, mode=mode, created_at=now, entries=manifest_entries)
+    current_dir = update_current_view(region, snapshot_dir)
+    shutil.copy2(manifest_path, current_dir / "manifest.json")
+
+    print(f"🗂  Snapshot ready at {snapshot_dir}")
+
+    run_offline_steps(region)
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -206,6 +721,105 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--mode",
         default="active",
         choices=["active", "cached"],
+        help="Fetch mode forwarded to fetch_all.py (ignored in offline mode)",
+    )
+    parser.add_argument(
+        "--ee-project",
+        default=None,
+        help="Optional Google Earth Engine project identifier",
+    )
+    parser.add_argument(
+        "--bootstrap",
+        action="store_true",
+        help="Install all known dependencies and exit.",
+    )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help="Run in analysis-only mode (no new downloads; implies offline mode).",
+    )
+    parser.add_argument(
+        "--allow-stale",
+        action="store_true",
+        help="Continue even if intermediate steps fail (use with caution).",
+    )
+    parser.add_argument(
+        "--skip-fetch",
+        action="store_true",
+        help="Skip the dynamic data fetch step.",
+    )
+    parser.add_argument(
+        "--skip-cache",
+        action="store_true",
+        help="Skip rebuilding the region cache.",
+    )
+    parser.add_argument(
+        "--skip-insights",
+        action="store_true",
+        help="Skip the insight generation phase.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    args = parse_args(argv)
+
+    if args.analyze:
+        os.environ["OFFLINE_MODE"] = "1"
+
+    missing = bootstrap_dependencies(ESSENTIAL_PACKAGES)
+    if args.bootstrap:
+        if missing and os.environ.get("OFFLINE_MODE") != "1":
+            return 1
+        return 0
+
+    region = args.region or os.environ.get("REGION")
+    if not region:
+        print("❌ Region is required unless --bootstrap is provided.")
+        return 2
+
+    steps: list[Tuple[str, Sequence[str]]] = []
+    offline = os.environ.get("OFFLINE_MODE") == "1"
+
+    if not (args.skip_fetch or offline or args.analyze):
+        steps.append(
+            (
+                "Fetch remote datasets",
+                build_command(
+                    "fetch_all.py",
+                    "--region",
+                    region,
+                    "--mode",
+                    args.mode,
+                    *(["--ee-project", args.ee_project] if args.ee_project else []),
+                ),
+            )
+        )
+
+    if not args.skip_cache:
+        steps.append(("Build region cache", build_command("build_region_cache.py", "--region", region)))
+
+    if not args.skip_insights:
+        steps.append(
+            (
+                "Generate region insights",
+                build_command("build_region_insights.py", "--region", region),
+            )
+        )
+
+    for name, command in steps:
+        run_step(name, command, allow_failure=args.allow_stale)
+
+    if steps:
+        print("\n🎉 Pipeline finished.")
+    else:
+        print("ℹ️ No steps were executed (all phases skipped or offline analyze mode).")
+
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - script entry point
+    sys.exit(main())
         help="Fetch mode to pass through to fetchers.",
     )
     parser.add_argument("--ee-project", default=None, help="Optional GEE project ID.")

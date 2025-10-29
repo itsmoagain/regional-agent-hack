@@ -1,5 +1,16 @@
-import yaml
 from pathlib import Path
+
+try:
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback for direct execution
+    from run_pipeline import require  # type: ignore
+
+yaml = require("pyyaml", "yaml")
+if yaml is None:
+    raise RuntimeError(
+        "PyYAML is required for phenology_utils. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
 
 def load_phenology_library(path: str | Path = "config/phenology_library.yml") -> dict:
     """Load and normalize the full phenology library."""

@@ -8,19 +8,47 @@ Reads:
   data/<region>/context_layers/{soil.csv, topography.csv, phenology_*.csv}
 
 Writes:
-  data/<region>/insights_daily.csv   (if daily available)
-  data/<region>/insights_monthly.csv (otherwise)
+  data/<region>/current/insights_daily.csv   (if daily available)
+  data/<region>/current/insights_monthly.csv (otherwise)
 """
 
 import argparse
 from pathlib import Path
-import pandas as pd
-import numpy as np
 import shutil
 import sys
-import yaml
 
-from _shared import ensure_region_workspace, load_region_profile
+try:
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback for direct execution
+    from run_pipeline import require  # type: ignore
+
+pd = require("pandas")
+if pd is None:
+    raise RuntimeError(
+        "Pandas is required for build_region_insights. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+np = require("numpy")
+if np is None:
+    raise RuntimeError(
+        "NumPy is required for build_region_insights. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+yaml = require("pyyaml", "yaml")
+if yaml is None:
+    raise RuntimeError(
+        "PyYAML is required for build_region_insights. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+from _shared import (
+    ensure_region_workspace,
+    get_region_current_dir,
+    get_region_data_root,
+    load_region_profile,
+)
 from datetime import datetime
 
 try:
@@ -129,7 +157,7 @@ def build_region_insights(region):
     cfg = load_region_profile(region)
     baseline_cfg = cfg.get("baseline", {"start_year": 2010, "end_year": 2022})
 
-    region_dir = DATA_DIR / region
+    region_dir = get_region_current_dir(region)
     daily_file = region_dir / "daily_merged.csv"
     monthly_file = region_dir / "monthly_merged.csv"
 
@@ -192,7 +220,7 @@ def build_region_insights(region):
     # ------------------------------------------------------------
     # Merge static context layers
     # ------------------------------------------------------------
-    ctx_dir = region_dir / "context_layers"
+    ctx_dir = get_region_data_root(region) / "context_layers"
     if ctx_dir.exists():
         soil_df = read_csv_safe(ctx_dir / "soil.csv")
         df = merge_single_row_context(df, soil_df, "soil_")

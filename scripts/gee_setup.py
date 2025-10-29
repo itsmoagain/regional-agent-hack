@@ -14,9 +14,10 @@ import json
 import subprocess
 from typing import Optional
 
-def _pip_install(pkg: str) -> None:
-    """Install or upgrade a package inside the current venv."""
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", pkg])
+try:
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback when executed directly
+    from run_pipeline import require  # type: ignore
 
 def _print_box(title: str, lines: list[str]) -> None:
     """Pretty console box output."""
@@ -36,19 +37,20 @@ def ensure_gee_ready(project: Optional[str] = None) -> bool:
     Returns True if initialized; False otherwise.
     """
     # 1) Install core dependencies
-    _pip_install("packaging")   # ✅ ensure packaging is available
-    try:
-        import ee  # noqa: F401
-    except Exception:
-        _print_box("Installing earthengine-api", [
-            "Installing Google Earth Engine Python client into your current venv...",
-        ])
-        _pip_install("earthengine-api")
-        _pip_install("packaging")   # ✅ install packaging again after earthengine
-        import ee  # type: ignore  # noqa: F401
+    if require("packaging") is None:
+        print("⚠️ Packaging library unavailable in offline mode.")
+        return False
 
-    # 2) Try initializing Earth Engine
-    import ee  # type: ignore
+    ee = require("earthengine-api", "ee")
+    if ee is None:
+        _print_box(
+            "earthengine-api missing",
+            [
+                "Earth Engine client library is not installed and offline mode is enabled.",
+                "Re-run with internet access to auto-install `earthengine-api`.",
+            ],
+        )
+        return False
 
     def _try_init(tag: str) -> bool:
         try:

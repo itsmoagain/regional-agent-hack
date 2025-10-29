@@ -1,0 +1,12 @@
+extends: insight.hungary_transdanubia.yml
+region_meta:
+  key: hungary_farmland
+  bbox:
+    - 16.0
+    - 45.5
+    - 23.0
+    - 48.6
+  country: Hungary
+  crops:
+    - maize
+    - sunflower

@@ -19,5 +19,5 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run regional pipeline
-        run: python scripts/run_pipeline.py --region hungary_farmland
+      - name: Run regional pipeline (offline check)
+        run: python scripts/run_pipeline.py --region hungary_farmland --analyze --allow-stale

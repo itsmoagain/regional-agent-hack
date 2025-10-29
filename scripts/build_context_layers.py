@@ -25,10 +25,38 @@ from pathlib import Path
 from subprocess import run
 import sys
 
-import numpy as np
-import pandas as pd
-import requests
-import yaml
+try:  # Local import to avoid circular dependency when used as a module
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback for direct execution
+    from run_pipeline import require  # type: ignore
+
+np = require("numpy")
+if np is None:
+    raise RuntimeError(
+        "NumPy is required for build_context_layers. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+pd = require("pandas")
+if pd is None:
+    raise RuntimeError(
+        "Pandas is required for build_context_layers. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+requests = require("requests")
+if requests is None:
+    raise RuntimeError(
+        "Requests is required for build_context_layers. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+yaml = require("pyyaml", "yaml")
+if yaml is None:
+    raise RuntimeError(
+        "PyYAML is required for build_context_layers. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
 
 from _shared import load_region_profile, resolve_region_config_path
 
