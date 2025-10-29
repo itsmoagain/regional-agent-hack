@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -35,6 +36,16 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # Local imports (deferred until after sys.path adjustments)
 from importlib import import_module
+from subprocess import CalledProcessError
+
+
+def _env_flag(name: str) -> bool:
+    """Return True when an environment variable is truthy."""
+
+    value = os.getenv(name)
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _load_scripts():
@@ -63,7 +74,14 @@ def _load_scripts():
     )
 
 
-def _step(label: str, func, *args, fail_fast: bool = True, **kwargs) -> Dict[str, str]:
+def _step(
+    label: str,
+    func,
+    *args,
+    fail_fast: bool = True,
+    strict_subprocess: bool = False,
+    **kwargs,
+) -> Dict[str, str]:
     """Run a pipeline step and capture status for later reporting."""
 
     start = datetime.utcnow()
@@ -77,7 +95,9 @@ def _step(label: str, func, *args, fail_fast: bool = True, **kwargs) -> Dict[str
     except Exception as exc:  # pragma: no cover - lightweight CLI
         summary["status"] = "error"
         summary["message"] = str(exc)
-        if fail_fast:
+        if fail_fast and not (
+            isinstance(exc, CalledProcessError) and not strict_subprocess
+        ):
             raise
     else:
         summary["status"] = "ok"
@@ -100,6 +120,7 @@ def run_pipeline(
     skip_insights: bool = False,
     skip_train: bool = False,
     fail_fast: bool = True,
+    strict_subprocess: bool = False,
 ) -> List[Dict[str, str]]:
     """Execute the requested steps for a region and return a status report."""
 
@@ -114,7 +135,15 @@ def run_pipeline(
     report: List[Dict[str, str]] = []
 
     # Always ensure the region workspace exists before other steps.
-    report.append(_step("init_region", init_region, region, fail_fast=fail_fast))
+    report.append(
+        _step(
+            "init_region",
+            init_region,
+            region,
+            fail_fast=fail_fast,
+            strict_subprocess=strict_subprocess,
+        )
+    )
 
     if not skip_fetch:
         report.append(
@@ -125,12 +154,19 @@ def run_pipeline(
                 fetch_mode,
                 ee_project,
                 fail_fast=fail_fast,
+                strict_subprocess=strict_subprocess,
             )
         )
 
     if not skip_cache:
         report.append(
-            _step("build_region_cache", build_region_cache, region, fail_fast=fail_fast)
+            _step(
+                "build_region_cache",
+                build_region_cache,
+                region,
+                fail_fast=fail_fast,
+                strict_subprocess=strict_subprocess,
+            )
         )
 
     if not skip_insights:
@@ -140,6 +176,7 @@ def run_pipeline(
                 build_region_insights,
                 region,
                 fail_fast=fail_fast,
+                strict_subprocess=strict_subprocess,
             )
         )
 
@@ -153,6 +190,7 @@ def run_pipeline(
                 target,
                 freq,
                 fail_fast=fail_fast,
+                strict_subprocess=strict_subprocess,
             )
         )
 
@@ -205,6 +243,16 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         help="Abort on first error instead of continuing remaining steps.",
     )
     parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Run in offline mode (skip internet-dependent fetchers).",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Re-raise subprocess failures (useful in CI).",
+    )
+    parser.add_argument(
         "--report",
         default=None,
         help="Optional path to write a JSON report summarizing each step.",
@@ -216,6 +264,18 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
 def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
 
+    offline_env = _env_flag("OFFLINE_MODE")
+    offline_mode = offline_env or args.offline
+    if offline_mode:
+        print(
+            "🌐 Skipping fetchers — running in offline analysis mode. "
+            "Cached data will be used."
+        )
+
+    strict_subprocess = args.strict or (
+        os.getenv("CI", "").strip().lower() == "true"
+    )
+
     report = run_pipeline(
         region=args.region,
         fetch_mode=args.mode,
@@ -223,11 +283,12 @@ def main(argv: List[str] | None = None) -> None:
         tier=args.tier,
         target=args.target,
         freq=args.freq,
-        skip_fetch=args.skip_fetch,
+        skip_fetch=args.skip_fetch or offline_mode,
         skip_cache=args.skip_cache,
         skip_insights=args.skip_insights,
         skip_train=args.skip_train,
         fail_fast=args.fail_fast,
+        strict_subprocess=strict_subprocess,
     )
 
     if args.report:
