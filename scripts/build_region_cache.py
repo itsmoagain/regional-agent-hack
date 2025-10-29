@@ -15,7 +15,7 @@ from pathlib import Path
 import json
 import subprocess
 import sys
-import yaml
+from _shared import load_region_profile
 
 # ------------------------------------------------------------
 # Ensure local dependencies before proceeding
@@ -45,12 +45,8 @@ def load_csv(path: Path, name: str) -> pd.DataFrame:
 # Helper: load bbox from region YAML
 # ------------------------------------------------------------
 def load_bbox_from_yaml(region: str):
-    """Load bounding box from region YAML config."""
-    cfg_path = Path("config") / f"insight.{region}.yml"
-    if not cfg_path.exists():
-        raise FileNotFoundError(f"Missing region config: {cfg_path}")
-    with open(cfg_path, "r") as f:
-        cfg = yaml.safe_load(f)
+    """Load bounding box from the region profile."""
+    cfg = load_region_profile(region)
     bbox = cfg.get("region_meta", {}).get("bbox") or []
     if not bbox or len(bbox) != 4:
         raise ValueError(f"Invalid bbox in config: {bbox}")
@@ -124,21 +120,22 @@ def build_region_cache(region: str):
     if not dfs:
         print(f"⚠️ No valid fetcher files found for region {region}. Attempting to auto-fetch...")
         bbox = load_bbox_from_yaml(region)
+        script_root = Path(__file__).resolve().parent
         required = {
-            "chirps_gee.csv": "scripts/fetch_chirps.py",
-            "soil_gee.csv": "scripts/fetch_soil.py",
-            "ndvi_gee.csv": "scripts/fetch_ndvi.py",
-            "openmeteo.csv": "scripts/fetch_openmeteo.py",
+            "chirps_gee.csv": script_root / "fetch_chirps_gee.py",
+            "soil_gee.csv": script_root / "fetch_soil_gee.py",
+            "ndvi_gee.csv": script_root / "fetch_ndvi_gee.py",
+            "openmeteo.csv": script_root / "fetch_openmeteo.py",
         }
 
         for file, fetcher in required.items():
             target = base / file
-            if not target.exists() and Path(fetcher).exists():
+            if not target.exists() and fetcher.exists():
                 print(f"🌍 Fetching missing dataset: {file}")
                 try:
                     subprocess.run(
                         [
-                            sys.executable, fetcher,
+                            sys.executable, str(fetcher),
                             "--bbox", *map(str, bbox),
                             "--out", str(target)
                         ],

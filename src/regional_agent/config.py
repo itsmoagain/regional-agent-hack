@@ -1,0 +1,76 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, Dict
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+REGION_PROFILES_DIR = ROOT / "regions" / "profiles"
+LEGACY_CONFIG_DIR = ROOT / "config"
+WORKSPACES_DIR = ROOT / "regions" / "workspaces"
+
+
+def _ensure_directory(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def resolve_region_config_path(region: str) -> Path:
+    """Return the path to the region profile, searching new and legacy layouts."""
+    REGION_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    candidates = [
+        REGION_PROFILES_DIR / f"insight.{region}.yml",
+        REGION_PROFILES_DIR / f"{region}.yml",
+        LEGACY_CONFIG_DIR / f"insight.{region}.yml",
+        LEGACY_CONFIG_DIR / f"{region}.yml",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        f"No profile found for '{region}'. Looked in: "
+        + ", ".join(str(c) for c in candidates)
+    )
+
+
+def load_region_profile(region: str) -> Dict[str, Any]:
+    """Load a region profile and resolve inheritance."""
+    profile_path = resolve_region_config_path(region)
+    cfg = yaml.safe_load(profile_path.read_text())
+    if "extends" in cfg:
+        base_path = Path(cfg["extends"])
+        if not base_path.is_absolute():
+            base_path = profile_path.parent / base_path
+        base = yaml.safe_load(base_path.read_text())
+        base.update({k: v for k, v in cfg.items() if k != "extends"})
+        cfg = base
+    cfg.setdefault("region_meta", {})
+    cfg["region_meta"].setdefault("key", region)
+    cfg["region_meta"].setdefault("profile_path", str(profile_path))
+    return cfg
+
+
+def ensure_region_workspace(region: str) -> Path:
+    """Ensure a dedicated workspace directory for interactive exploration."""
+    workspace = _ensure_directory(WORKSPACES_DIR / region)
+    (workspace / "logs").mkdir(exist_ok=True)
+    (workspace / "insights").mkdir(exist_ok=True)
+    (workspace / "models").mkdir(exist_ok=True)
+    (workspace / "cache").mkdir(exist_ok=True)
+    # Drop a lightweight manifest for discoverability.
+    manifest = {
+        "region": region,
+        "profile": str(resolve_region_config_path(region)),
+    }
+    (workspace / "workspace.json").write_text(json.dumps(manifest, indent=2))
+    return workspace
+
+
+__all__ = [
+    "REGION_PROFILES_DIR",
+    "resolve_region_config_path",
+    "load_region_profile",
+    "ensure_region_workspace",
+]

@@ -48,7 +48,7 @@ The result is a system that turns global climate data into *regional intelligenc
 
 | Region | Context | Focus |
 |--------|----------|--------|
-| 🇭🇺 **Hungary Farmland** | Temperate, mixed cropping | Climate variability and soil moisture response |
+| 🇭🇺 **Transdanubia Wheat Belt** | Temperate, mixed cropping | Climate variability and soil moisture response |
 | 🇯🇲 **Jamaica Coffee Belt** | Tropical, high-elevation | Shade dynamics and rainfall anomalies |
 
 ---
@@ -70,24 +70,113 @@ The mesh expands through regional connection and reuse, forming a **planetary ne
 ---
 
 ## ⚙️ Architecture
-(Global datasets) --> [Regional Distillation Engine] --> [Local Cache]
-      |                           |
-      v                           v
- [CHIRPS, ERA5, MODIS]       [SPI, GDD, NDVI, VPD Features]
-      |                           |
-      v                           v
- [Crop & Soil Data] --> [Agent Reasoning] --> [Insight Cards / Emissions Log]
+
+```mermaid
+%% See docs/architecture_diagram.mmd for an editable copy
+flowchart TD
+    A[Global Climate Datasets\nCHIRPS · ERA5 · MODIS · SoilGrids] --> B[Regional Distillation Engine\nfetch_* scripts]
+    A --> C[Context Libraries\nCrop calendars · Phenology · Practices]
+    B --> D[Regional Cache\nCSV / Parquet]
+    C --> D
+    D --> E[Feature Builder\nTiered features]
+    E --> F[Random Forest Models\nTiered metrics]
+    D --> G[Anomaly + Insight Engine\nSPI · NDVI · Rules]
+    F --> G
+    G --> H[Insight Workspace\nregions/workspaces/<region>]
+    G --> I[Green AI Logs\nCodeCarbon]
+```
 
 ---
 
 ## 🧭 Setup & Reproducibility
-git clone https://github.com/itsmoagain/regional-agent-hack.git  
-cd regional-agent-hack  
-pip install -r requirements.txt  
-python scripts/build_region_cache.py --region hungary_farmland --track  
 
-> Recommended Python version: **3.12.x**  
-> Compatible with Kaggle and GitHub Actions runners.
+> Recommended Python version: **3.11+** (tested on Kaggle CPUs and GitHub Actions runners).
+
+### 1. Clone & install
+
+```bash
+git clone https://github.com/itsmoagain/regional-agent-hack.git
+cd regional-agent-hack
+pip install -r requirements.txt
+```
+
+### 2. Authenticate data sources (one time)
+
+Some fetchers rely on Google Earth Engine (GEE). From the repo root run:
+
+```bash
+python scripts/gee_setup.py --project <your_gee_project>
+```
+
+The command prints the OAuth URL you must visit. Paste the token back into the terminal and the credentials will be cached under `~/.config/earthengine/`.
+
+### 3. Launch the region wizard
+
+```bash
+python scripts/setup_new_region.py
+```
+
+The wizard collects:
+
+1. Region key (e.g. `hungary_transdanubia`).
+2. Bounding box (`min_lon min_lat max_lon max_lat`).
+3. Crop selection (from `config/crop_library.yml`).
+4. Optional practice log metadata.
+
+It scaffolds:
+
+- `regions/profiles/insight.<region>.yml` (extending `insight.defaults.yml`).
+- `regions/workspaces/<region>/` workspace for interactive agent runs.
+- `data/<region>/` directories.
+- Cached phenology templates derived from the crop library.
+
+### 4. Build the climate cache
+
+```bash
+python scripts/build_region_cache.py --region <region_key>
+```
+
+The cache builder will:
+
+- Reuse any existing CSVs in `data/<region_key>/`.
+- Auto-fetch missing datasets with CPU-only fetchers:
+  - `fetch_chirps_gee.py` (precipitation)
+  - `fetch_soil_gee.py` (surface/root-zone moisture)
+  - `fetch_ndvi_gee.py` (MODIS NDVI)
+  - `fetch_openmeteo.py` (temperature baselines)
+
+Outputs land in `daily_merged.csv` and `monthly_merged.csv`, with provenance logged in `metadata.json`.
+
+### 5. Generate insights & models
+
+```bash
+python scripts/build_region_insights.py --region <region_key>
+python scripts/train_region_model.py --region <region_key> --tier 2 --freq monthly
+python scripts/flag_anomalies.py --region <region_key>
+```
+
+If you run the onboarding wizard (`python scripts/setup_new_region.py`) these commands are executed automatically: once the
+cache is ready the wizard calls `build_region_insights.py`, which emits `data/<region_key>/insights_daily.csv` (when daily data exists)
+or `insights_monthly.csv`. The reference regions bundled in `regions/profiles/insight.hungary_transdanubia.yml` and
+`regions/profiles/insight.jamaica_coffee.yml` therefore produce their insight tables immediately, exactly as a user-specified AOI would.
+
+`train_region_model.py` now adapts to both the legacy `insight_*.csv` naming and the new `insights_*.csv` format. Feature builds are tiered (core climate → +phenology → +context) and the Random Forest artifacts are stored under `models/<region_key>/` with feature importances and metrics JSON.
+
+Every automated step also mirrors key artifacts into `regions/workspaces/<region_key>/` so you have a clean, dedicated sandbox for dashboards, notebooks, or further agent experimentation without touching the canonical data cache.
+
+### 6. Track Green-AI runs
+
+For Hackathon submissions include paired *baseline* and *optimized* runs. Use `engine/evaluate_greenai.py` to wrap the command you are profiling:
+
+```bash
+python engine/evaluate_greenai.py --region <region_key> --command "python scripts/train_region_model.py --region <region_key> --tier 2"
+```
+
+The wrapper records `runtime_sec`, `energy_kwh` (CodeCarbon proxy), hardware, and `co2e_kg` so you can compose the before/after summary required by the competition rubric.
+
+### 7. Notebook reproduction
+
+Kaggle- or Devpost-ready walkthroughs live in `notebooks/pipeline_demo.ipynb`. Switch the `REGION` variable between `hungary_transdanubia` and `jamaica_coffee` to demonstrate reproducibility across both flagship AOIs.
 
 ---
 

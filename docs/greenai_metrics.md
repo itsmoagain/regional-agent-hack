@@ -1,3 +1,25 @@
 # Green AI Metrics
 
-We log runtime, data size, and CO2eq via CodeCarbon.
+The Hack4Earth challenge requires a **Scientific Carbon Impact (SCI)-style** comparison between a baseline and an optimised run for the same task.
+
+Minimum deliverables per region/run:
+
+1. `runtime_sec`
+2. `energy_kwh` (or proxy)
+3. `co2e_kg` with methodology note
+4. Hardware descriptor (CPU model, cores) and geographic region
+
+### How to capture the metrics
+
+Wrap any command with the CodeCarbon helper:
+
+```bash
+python engine/evaluate_greenai.py \
+    --region hungary_transdanubia \
+    --label baseline \
+    --command "python scripts/train_region_model.py --region hungary_transdanubia --tier 1"
+```
+
+This writes a JSON line under `models/<region>/greenai_runs.jsonl` with the required metrics and an execution log. Repeat with your optimised configuration (e.g., higher feature tier, tuned hyperparameters) and summarise the **before/after** in the submission notebook.
+
+For the carbon-aware bonus, record one of the runs during a lower-carbon window (e.g., UTC night for EU grids) or on Kaggle's `us-central1` CPU region and attach a screenshot/log of the scheduler time.

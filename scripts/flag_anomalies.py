@@ -3,14 +3,20 @@ from datetime import timedelta
 from pathlib import Path
 import operator
 
+from _shared import resolve_region_config_path
+
 OPS = {
     "<": operator.lt, "<=": operator.le, ">": operator.gt, ">=": operator.ge, "==": operator.eq, "!=": operator.ne
 }
 
 def load_config(path):
-    cfg = yaml.safe_load(Path(path).read_text())
+    config_path = Path(path)
+    cfg = yaml.safe_load(config_path.read_text())
     if "extends" in cfg:
-        base = yaml.safe_load(Path(cfg["extends"]).read_text())
+        extend_path = Path(cfg["extends"])
+        if not extend_path.is_absolute():
+            extend_path = config_path.parent / extend_path
+        base = yaml.safe_load(extend_path.read_text())
         # shallow merge (good enough for our simple shapes)
         base.update({k:v for k,v in cfg.items() if k!="extends"})
         cfg = base
@@ -30,10 +36,25 @@ def eval_when(row, tree):
         if not any(eval_clause(row, c) for c in tree["any"]): return False
     return True
 
-def main(region:str, config_path:str):
+def main(region: str, config_path: str | None = None):
     rp = Path(f"data/{region}")
-    df = pd.read_csv(rp/"insight_daily.csv", parse_dates=["date"]).sort_values("date")
-    cfg = load_config(config_path)
+    daily_paths = [
+        rp / "insights_daily.csv",
+        rp / "insight_daily.csv",
+        rp / "daily_merged.csv",
+    ]
+    for candidate in daily_paths:
+        if candidate.exists():
+            df = pd.read_csv(candidate, parse_dates=["date"]).sort_values("date")
+            break
+    else:
+        raise FileNotFoundError(
+            f"No daily insight/cache file found for {region}. Looked for: {', '.join(str(p) for p in daily_paths)}"
+        )
+
+    if config_path is None:
+        config_path = resolve_region_config_path(region)
+    cfg = load_config(str(config_path))
 
     rules = cfg.get("rules", [])
     flags = []
@@ -79,6 +100,6 @@ if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True)
-    p.add_argument("--config", required=True)
+    p.add_argument("--config", help="Optional path to a custom insight profile")
     a = p.parse_args()
     main(a.region, a.config)

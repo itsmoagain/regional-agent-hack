@@ -18,6 +18,8 @@ from pathlib import Path
 import json
 from datetime import datetime
 import yaml
+
+from _shared import load_region_profile
 from config.climate_zone_lookup import get_climate_zone
 
 from config.crop_variable_map import (
@@ -62,11 +64,7 @@ def fetch_power_data(lat, lon, variables, start, end):
 # ------------------------------------------------------------
 def main(region: str):
     # Load region config
-    cfg_path = Path("config") / f"insight.{region}.yml"
-    if not cfg_path.exists():
-        raise FileNotFoundError(f"No region config found at {cfg_path}")
-
-    cfg = yaml.safe_load(cfg_path.read_text())
+    cfg = load_region_profile(region)
     bbox = cfg["region_meta"]["bbox"]
     crops = cfg["region_meta"]["crops"]
     country = cfg["region_meta"].get("country", "unknown")
@@ -149,6 +147,6 @@ def main(region: str):
 # ------------------------------------------------------------
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Fetch NASA POWER agroclimatic data for phenology context.")
-    p.add_argument("--region", required=True, help="Region name matching config/insight.<region>.yml")
+    p.add_argument("--region", required=True, help="Region name matching regions/profiles/insight.<region>.yml")
     args = p.parse_args()
     main(args.region)

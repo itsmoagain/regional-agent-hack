@@ -20,11 +20,13 @@ import pandas as pd
 import numpy as np
 import joblib
 import json
+import shutil
 from datetime import datetime
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 from agent.features.builder import build_features
+from _shared import ensure_region_workspace
 
 # ------------------------------------------------------------
 # Helper: compute evaluation metrics
@@ -52,17 +54,31 @@ def train_region_model(region: str, tier: int = 1, target: str = "ndvi_zscore", 
     region_path = Path("data") / region
     model_dir = Path("models") / region
     model_dir.mkdir(parents=True, exist_ok=True)
+    workspace = ensure_region_workspace(region)
 
     # Determine which insights file to use
+    requested_freq = freq
     insight_file = region_path / f"insights_{freq}.csv"
     if not insight_file.exists():
-        fallback = region_path / "insights_monthly.csv"
-        if fallback.exists():
-            insight_file = fallback
-            freq = "monthly"
-            print(f"⚠️  No insights_{freq}.csv found; using monthly fallback.")
+        legacy = region_path / f"insight_{freq}.csv"
+        if legacy.exists():
+            insight_file = legacy
         else:
-            raise FileNotFoundError(f"No insight file found for {region} ({freq})")
+            fallback = region_path / "insights_monthly.csv"
+            if not fallback.exists():
+                legacy_monthly = region_path / "insight_monthly.csv"
+                if legacy_monthly.exists():
+                    fallback = legacy_monthly
+            if fallback.exists():
+                insight_file = fallback
+                freq = "monthly"
+                print(
+                    f"⚠️  No insights_{requested_freq}.csv found; using monthly fallback."
+                )
+            else:
+                raise FileNotFoundError(
+                    f"No insight file found for {region}. Expected {region_path / f'insights_{freq}.csv'}"
+                )
 
     print(f"🏗  Building Tier {tier} features for {region} ({freq} data)...")
     X, y = build_features(region, tier, insight_file=insight_file, target=target)
@@ -121,6 +137,12 @@ def train_region_model(region: str, tier: int = 1, target: str = "ndvi_zscore", 
     print(f"🧠 Model → {model_file}")
     print(f"📊 Feature importances → {feat_file}")
     print(f"📘 Metrics → {metrics_file}")
+
+    workspace_models = workspace / "models"
+    workspace_models.mkdir(parents=True, exist_ok=True)
+    for artifact in (model_file, feat_file, metrics_file):
+        shutil.copy2(artifact, workspace_models / artifact.name)
+    print(f"🗂️  Synced model artifacts to workspace → {workspace_models.relative_to(workspace)}")
 
 
 # ------------------------------------------------------------

@@ -4,7 +4,7 @@ Compute climate anomalies, short-term deltas, and derived insights for each regi
 
 Reads:
   data/<region>/daily_merged.csv and/or monthly_merged.csv
-  config/insight.<region>.yml
+  regions/profiles/insight.<region>.yml
   data/<region>/context_layers/{soil.csv, topography.csv, phenology_*.csv}
 
 Writes:
@@ -16,8 +16,11 @@ import argparse
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import shutil
 import sys
 import yaml
+
+from _shared import ensure_region_workspace, load_region_profile
 from datetime import datetime
 
 try:
@@ -27,7 +30,6 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
-CONFIG_DIR = ROOT / "config"
 
 
 # ------------------------------------------------------------
@@ -122,14 +124,10 @@ def read_csv_safe(path):
 
 def build_region_insights(region):
     init_region(region)
+    workspace = ensure_region_workspace(region)
 
-    cfg_path = CONFIG_DIR / f"insight.{region}.yml"
-    if cfg_path.exists():
-        with open(cfg_path, "r") as f:
-            cfg = yaml.safe_load(f)
-        baseline_cfg = cfg.get("baseline", {"start_year": 2010, "end_year": 2022})
-    else:
-        baseline_cfg = {"start_year": 2010, "end_year": 2022}
+    cfg = load_region_profile(region)
+    baseline_cfg = cfg.get("baseline", {"start_year": 2010, "end_year": 2022})
 
     region_dir = DATA_DIR / region
     daily_file = region_dir / "daily_merged.csv"
@@ -225,6 +223,11 @@ def build_region_insights(region):
     out_file = region_dir / f"insights_{freq}.csv"
     df.to_csv(out_file, index=False)
     print(f"✅ Wrote enriched insights → {out_file}")
+
+    workspace_out = workspace / "insights" / out_file.name
+    workspace_out.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(out_file, workspace_out)
+    print(f"🗂️  Synced insights to workspace → {workspace_out.relative_to(workspace)}")
 
 
 # ------------------------------------------------------------

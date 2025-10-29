@@ -3,7 +3,7 @@
 Build RAG (Regional Aggregation Grid) context layers for a region.
 
 Reads:
-  - config/insight.<region>.yml  (to get bbox, crops, and metadata)
+  - regions/profiles/insight.<region>.yml  (to get bbox, crops, and metadata)
   - data/<region>/ (for caching)
 
 Creates:
@@ -17,127 +17,78 @@ Each layer is lightweight and cached — ready for use in feature building.
 
 import argparse
 import pandas as pd
-import numpy as np
-import yaml
-import requests
+import shutil
 from pathlib import Path
 from datetime import datetime
 
+from _shared import ensure_region_workspace, load_region_profile
+
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
-CONFIG_DIR = ROOT / "config"
 
+try:
+    from scripts.build_context_layers import build_context_layers
+except ModuleNotFoundError:
+    from build_context_layers import build_context_layers
 
-# -------------------------------------------------
-# Helpers
-# -------------------------------------------------
 
 def load_region_meta(region):
-    cfg_path = CONFIG_DIR / f"insight.{region}.yml"
-    if not cfg_path.exists():
-        raise FileNotFoundError(f"No YAML config found for region {region}")
-    with open(cfg_path, "r") as f:
-        cfg = yaml.safe_load(f)
+    cfg = load_region_profile(region)
     return cfg.get("region_meta", {})
 
 
-def save_layer(region, name, df):
-    out_dir = DATA_DIR / region / "context_layers"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{name}.csv"
-    df.to_csv(out_path, index=False)
-    print(f"✅ Saved {name} → {out_path.name} ({len(df)} rows)")
-    return out_path
+def ensure_context_layers(region: str) -> Path:
+    """Guarantee that context layer CSVs exist for the requested region."""
+    ctx_dir = DATA_DIR / region / "context_layers"
+    if not ctx_dir.exists() or not any(ctx_dir.glob("*.csv")):
+        print("ℹ️  No cached context layers detected — building them now.")
+        build_context_layers(region)
+    return ctx_dir
 
 
-# -------------------------------------------------
-# 1️⃣ Phenology Layer — from NASA POWER or CropCalendar
-# -------------------------------------------------
-def fetch_phenology(region_meta):
-    crops = region_meta.get("crops", ["unknown"])
-    bbox = region_meta.get("bbox")
-    if bbox and None not in bbox:
-        min_lon, min_lat, max_lon, max_lat = bbox
-    else:
-        print("⚠️  Missing bbox; using placeholder coordinates for phenology.")
-        min_lon, min_lat, max_lon, max_lat = -77.0, 18.0, -76.5, 18.5
+def collect_layers(region: str) -> dict[str, pd.DataFrame]:
+    ctx_dir = ensure_context_layers(region)
+    layers: dict[str, pd.DataFrame] = {}
 
-    # Placeholder logic — later can query NASA POWER CropCalendar API
-    data = []
-    for crop in crops:
-        data.append({
-            "crop": crop,
-            "planting_month": np.random.choice(range(1, 13)),
-            "harvest_month": np.random.choice(range(1, 13)),
-            "source": "placeholder",
-            "lat_center": (min_lat + max_lat) / 2,
-            "lon_center": (min_lon + max_lon) / 2
-        })
-    return pd.DataFrame(data)
+    phenology_frames = []
+    for path in ctx_dir.glob("phenology_*.csv"):
+        try:
+            df = pd.read_csv(path)
+            df["source_file"] = path.name
+            phenology_frames.append(df)
+        except Exception as exc:
+            print(f"⚠️  Could not read {path}: {exc}")
+    if phenology_frames:
+        layers["phenology"] = pd.concat(phenology_frames, ignore_index=True)
 
+    soil_path = ctx_dir / "soil.csv"
+    if soil_path.exists():
+        layers["soil"] = pd.read_csv(soil_path)
 
-# -------------------------------------------------
-# 2️⃣ Soil Structure Layer — from SoilGrids or OpenLandMap
-# -------------------------------------------------
-def fetch_soil(region_meta):
-    bbox = region_meta.get("bbox")
-    if bbox and None not in bbox:
-        min_lon, min_lat, max_lon, max_lat = bbox
-    else:
-        print("⚠️  Missing bbox; using placeholder coordinates for soil layer.")
-        min_lon, min_lat, max_lon, max_lat = -77.0, 18.0, -76.5, 18.5
+    topo_path = ctx_dir / "topography.csv"
+    if topo_path.exists():
+        layers["topography"] = pd.read_csv(topo_path)
 
-    # Placeholder synthetic soil values
-    soil_props = [
-        {"var": "sand", "mean_pct": np.random.uniform(30, 60)},
-        {"var": "clay", "mean_pct": np.random.uniform(10, 40)},
-        {"var": "organic_carbon", "g_kg": np.random.uniform(5, 20)},
-    ]
-    return pd.DataFrame(soil_props)
+    return layers
 
 
-# -------------------------------------------------
-# 3️⃣ Topography Layer — from SRTM / OpenTopography
-# -------------------------------------------------
-def fetch_topography(region_meta):
-    bbox = region_meta.get("bbox")
-    if bbox and None not in bbox:
-        min_lon, min_lat, max_lon, max_lat = bbox
-    else:
-        print("⚠️  Missing bbox; using placeholder coordinates for topography.")
-        min_lon, min_lat, max_lon, max_lat = -77.0, 18.0, -76.5, 18.5
-
-    # Placeholder values; later fetch via API
-    elev_mean = np.random.uniform(100, 1200)
-    slope_mean = np.random.uniform(2, 25)
-    aspect = np.random.choice(["N", "NE", "E", "SE", "S", "SW", "W", "NW"])
-    df = pd.DataFrame([{"elevation_m": elev_mean, "slope_deg": slope_mean, "dominant_aspect": aspect}])
-    return df
-
-
-# -------------------------------------------------
-# 4️⃣ Summarize into rags.csv
-# -------------------------------------------------
-def build_rags_summary(region):
-    context_dir = DATA_DIR / region / "context_layers"
+def build_rags_summary(region: str, layers: dict[str, pd.DataFrame]) -> pd.DataFrame:
     rag_path = DATA_DIR / region / "rags.csv"
 
-    layers = {}
-    for layer_name in ["phenology", "soil", "topography"]:
-        layer_file = context_dir / f"{layer_name}.csv"
-        if layer_file.exists():
-            layers[layer_name] = pd.read_csv(layer_file)
-        else:
-            print(f"⚠️ Missing layer: {layer_name}.csv")
-
-    # Merge summaries into flat table
     summary = {
         "region": region,
         "timestamp": datetime.utcnow().isoformat(),
         "n_crops": len(layers.get("phenology", [])),
-        "soil_mean_sand": layers.get("soil", pd.DataFrame()).get("mean_pct", pd.Series([None]))[0],
-        "elevation_mean": layers.get("topography", pd.DataFrame()).get("elevation_m", pd.Series([None]))[0],
+        "soil_mean_sand": layers.get("soil", pd.DataFrame()).get("sand_pct", pd.Series([None])).iloc[0]
+        if "sand_pct" in layers.get("soil", pd.DataFrame()).columns
+        else layers.get("soil", pd.DataFrame()).get("mean_pct", pd.Series([None])).iloc[0]
+        if not layers.get("soil", pd.DataFrame()).empty
+        else None,
+        "elevation_mean": layers.get("topography", pd.DataFrame()).get("elevation_m", pd.Series([None])).iloc[0]
+        if not layers.get("topography", pd.DataFrame()).empty
+        else None,
     }
+
     df = pd.DataFrame([summary])
     df.to_csv(rag_path, index=False)
     print(f"✅ Wrote summary RAG → {rag_path}")
@@ -152,15 +103,18 @@ def build_rag_context(region: str):
     print(f"🌍 Building RAG context layers for {region}")
     print(f"🗺️  BBOX: {region_meta.get('bbox')} | Crops: {region_meta.get('crops')}")
 
-    pheno_df = fetch_phenology(region_meta)
-    soil_df = fetch_soil(region_meta)
-    topo_df = fetch_topography(region_meta)
+    ensure_region_workspace(region)
+    layers = collect_layers(region)
+    if not layers:
+        print("❌ No context layers available even after rebuild. Aborting.")
+        return
 
-    save_layer(region, "phenology", pheno_df)
-    save_layer(region, "soil", soil_df)
-    save_layer(region, "topography", topo_df)
-
-    build_rags_summary(region)
+    build_rags_summary(region, layers)
+    workspace = ensure_region_workspace(region)
+    workspace_out = workspace / "insights" / "rags.csv"
+    workspace_out.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(DATA_DIR / region / "rags.csv", workspace_out)
+    print(f"🗂️  Synced RAG summary to workspace → {workspace_out.relative_to(workspace)}")
     print(f"🎉 Context layers built successfully for {region}")
 
 

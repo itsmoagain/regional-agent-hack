@@ -1,0 +1,41 @@
+extends: insight.defaults.yml
+region_meta:
+  name: Transdanubia Wheat Belt
+  country: Hungary
+  bbox:
+    - 16.65
+    - 46.70
+    - 18.30
+    - 47.45
+  crops:
+    - Wheat
+    - Maize
+  notes: "Winter wheat rotation in Transdanubia; bounding box covers Győr-Moson-Sopron to Tolna"
+baseline:
+  start_year: 2012
+  end_year: 2023
+rules:
+  - id: hu_heat_stress
+    label: 'Transdanubia: Wheat canopy heat stress'
+    when:
+      all:
+        - var: t2m_mean_anomaly_roll
+          op: '>'
+          value: 2.5
+        - var: ndvi_zscore
+          op: '<'
+          value: -0.5
+  - id: hu_water_deficit
+    label: 'Transdanubia: Soil water deficit alert'
+    when:
+      all:
+        - var: precip_mm_sum_anomaly_roll
+          op: '<'
+          value: -0.6
+        - var: soil_surface_moisture
+          op: '<'
+          value: 0.18
+windows:
+  spi_short: 30
+  spi_long: 90
+  plot_context_days: 75

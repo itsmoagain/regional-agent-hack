@@ -64,7 +64,7 @@ def update_metadata(region_dir, summary_dict):
 # ------------------------------------------------------------
 # Helper: Visualization
 # ------------------------------------------------------------
-def plot_ndvi_anomalies(df, region_name):
+def plot_ndvi_anomalies(df, region_name, plot_format="svg"):
     if "ndvi_anomaly" not in df.columns:
         print("⚠️ No NDVI anomaly column found — skipping visualization.")
         return
@@ -76,8 +76,9 @@ def plot_ndvi_anomalies(df, region_name):
     plt.xlabel("Date")
     plt.ylabel("Z-Score")
     plt.tight_layout()
-    out_path = Path(f"data/{region_name}/ndvi_anomaly_preview.png")
-    plt.savefig(out_path, dpi=150)
+    out_path = Path(f"data/{region_name}/ndvi_anomaly_preview.{plot_format}")
+    save_kwargs = {"dpi": 150} if plot_format.lower() == "png" else {}
+    plt.savefig(out_path, **save_kwargs)
     plt.close()
     print(f"📊 NDVI anomaly plot saved → {out_path}")
 
@@ -89,6 +90,12 @@ def main():
     parser = argparse.ArgumentParser(description="Compute rolling anomalies for a region.")
     parser.add_argument("--region", required=True, help="Region name (e.g. austin_farmland)")
     parser.add_argument("--window", type=int, default=30, help="Rolling window size (days)")
+    parser.add_argument(
+        "--plot-format",
+        choices=["svg", "png"],
+        default="svg",
+        help="Image format for the optional NDVI anomaly preview.",
+    )
     args = parser.parse_args()
 
     region_dir = Path("data") / args.region
@@ -118,7 +125,7 @@ def main():
 
     # Visualization
     try:
-        plot_ndvi_anomalies(df_out, args.region)
+        plot_ndvi_anomalies(df_out, args.region, plot_format=args.plot_format)
     except Exception as e:
         print(f"⚠️ Visualization failed: {e}")
 

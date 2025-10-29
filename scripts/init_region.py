@@ -6,7 +6,7 @@ Creates:
   - data/<region>/flags/
   - data/<region>/plots/
   - data/<region>/context_layers/
-  - config/insight.<region>.yml (if missing)
+  - regions/profiles/insight.<region>.yml (if missing)
 
 Now includes:
   ✅ Full rolling/climatology variable structure
@@ -39,7 +39,7 @@ import subprocess
 # Default Config Template
 # -------------------------
 DEFAULTS = {
-    "extends": "config/insight.defaults.yml",
+    "extends": "insight.defaults.yml",
     "baseline": {"start_year": 2010, "end_year": 2022},
     "rolling": {"window_days": 30, "min_periods": 5},
     "windows": {"spi_short": 30, "spi_long": 90, "plot_context_days": 60},
@@ -157,8 +157,8 @@ DEFAULTS = {
 def init_region(region_name: str, bbox=None, crops=None, country=None):
     """Create necessary folders, YAML config, and context layers for a given region."""
 
-    config_dir = Path("config")
-    config_dir.mkdir(exist_ok=True)  # ✅ ensure config directory exists
+    config_dir = Path("regions") / "profiles"
+    config_dir.mkdir(parents=True, exist_ok=True)  # ✅ ensure profile directory exists
 
     cfg_path = config_dir / f"insight.{region_name}.yml"
     data_dir = Path("data") / region_name

@@ -119,11 +119,36 @@ def add_context_features(df: pd.DataFrame, region_path: Path):
 # ------------------------------------------------------------
 # Main builder function
 # ------------------------------------------------------------
-def build_features(region: str, tier: int = 1):
+def build_features(region: str, tier: int = 1, insight_file: Path | str | None = None,
+                   target: str | None = None):
+    """Assemble feature matrix/target vector for a region.
+
+    Parameters
+    ----------
+    region: str
+        Region key matching ``data/<region>``.
+    tier: int
+        Feature tier depth (1=core, 2=+phenology/practices, 3=+context).
+    insight_file: Optional path
+        Explicit insight CSV override. Defaults to ``insights_monthly.csv``.
+    target: Optional[str]
+        Name of the target column. Falls back to ``ndvi_anomaly`` or
+        ``ndvi_zscore`` if present.
+    """
+
     region_path = Path("data") / region
-    insight_file = region_path / "insight_monthly.csv"
-    if not insight_file.exists():
-        raise FileNotFoundError(f"No insight_monthly.csv for region {region}")
+    if insight_file is None:
+        insight_file = region_path / "insights_monthly.csv"
+        if not insight_file.exists():
+            # Backwards compatibility with older naming convention
+            legacy = region_path / "insight_monthly.csv"
+            if legacy.exists():
+                insight_file = legacy
+            else:
+                raise FileNotFoundError(
+                    f"No insights file found for region {region} (looked for {insight_file})"
+                )
+    insight_file = Path(insight_file)
 
     df = pd.read_csv(insight_file, parse_dates=["date"])
     df = add_tier1_features(df)
@@ -136,11 +161,15 @@ def build_features(region: str, tier: int = 1):
         df = add_context_features(df, region_path)
 
     # Define target (example: NDVI anomaly)
-    target_col = "ndvi_anomaly" if "ndvi_anomaly" in df.columns else None
+    candidate_targets = [t for t in [target, "ndvi_anomaly", "ndvi_zscore"] if t]
+    target_col = next((t for t in candidate_targets if t in df.columns), None)
+
     if target_col:
-        y = df[target_col].shift(-1).dropna()  # predict next period
+        y = df[target_col].shift(-1).dropna()
         X = df.iloc[:-1].drop(columns=["date", target_col])
+        X = X.reset_index(drop=True)
+        y = y.reset_index(drop=True)
     else:
-        X, y = df.drop(columns=["date"]), None
+        X, y = df.drop(columns=["date"]).reset_index(drop=True), None
 
     return X, y

@@ -1,0 +1,12 @@
+%% Situated Insight architecture diagram
+flowchart TD
+    A[Global Climate Datasets\nCHIRPS · ERA5 · MODIS · SoilGrids] --> B[Regional Distillation Engine\nfetch_* scripts]
+    A --> C[Context Libraries\nCrop calendars · Phenology · Practices]
+    B --> D[Regional Cache\nCSV / Parquet]
+    C --> D
+    D --> E[Feature Builder\nTiered features]
+    E --> F[Random Forest Models\nTiered metrics]
+    D --> G[Anomaly + Insight Engine\nSPI · NDVI · Rules]
+    F --> G
+    G --> H[Insight Workspace\nregions/workspaces/<region>]
+    G --> I[Green AI Logs\nCodeCarbon]

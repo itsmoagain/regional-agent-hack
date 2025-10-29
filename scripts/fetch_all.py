@@ -3,7 +3,7 @@
 Fetch all datasets for a region (CHIRPS, SMAP, NDVI, Open-Meteo).
 
 - Ensures Earth Engine client is installed & authenticated BEFORE running GEE fetchers.
-- Reads BBOX primarily from config/insight.<region>.yml, falls back to internal map.
+- Reads BBOX primarily from regions/profiles/insight.<region>.yml, falls back to internal map.
 - Uses current venv's Python (sys.executable).
 
 Usage:
@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import List, Optional
 import yaml
 import os
+
+from _shared import load_region_profile
 
 # ---------------------------------------------------------------------
 # 🔧 Path safety — allows running this file directly OR via other scripts
@@ -57,17 +59,14 @@ FETCHERS = {
 # Helpers
 # ---------------------------------------------------------------------
 def _read_bbox_from_yaml(region: str) -> Optional[List[float]]:
-    """Read bounding box from region config YAML if available."""
-    cfg_path = ROOT / "config" / f"insight.{region}.yml"
-    if not cfg_path.exists():
-        return None
+    """Read bounding box from region profile if available."""
     try:
-        cfg = yaml.safe_load(cfg_path.read_text())
-        bbox = cfg.get("region_meta", {}).get("bbox")
-        if isinstance(bbox, list) and len(bbox) == 4:
-            return [float(b) for b in bbox]
-    except Exception:
-        pass
+        cfg = load_region_profile(region)
+    except FileNotFoundError:
+        return None
+    bbox = cfg.get("region_meta", {}).get("bbox")
+    if isinstance(bbox, list) and len(bbox) == 4:
+        return [float(b) for b in bbox]
     return None
 
 
@@ -106,7 +105,7 @@ def main(region: str, mode: str, ee_project: Optional[str]) -> None:
 
     bbox = _read_bbox_from_yaml(region) or REGION_BBOXES.get(region)
     if not bbox:
-        print(f"❌ No BBOX found for '{region}'. Add it to config/insight.{region}.yml or REGION_BBOXES.")
+        print(f"❌ No BBOX found for '{region}'. Add it to regions/profiles/insight.{region}.yml or REGION_BBOXES.")
         sys.exit(1)
     print(f"🗺  Bounding Box: {bbox}")
 

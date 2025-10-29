@@ -1,0 +1,1146 @@
+# Canonical crop library grouped by production system.
+# Each entry supplies metadata used by the setup wizard and phenology builders.
+Rainfed Cereals:
+  - name: Wheat
+    sci_name: Triticum aestivum
+    fao_code: 101
+    cycle_days: 120
+    season_start: 90
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Durum Wheat
+    sci_name: Triticum turgidum
+    fao_code: 102
+    cycle_days: 125
+    season_start: 90
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Barley
+    sci_name: Hordeum vulgare
+    fao_code: 103
+    cycle_days: 110
+    season_start: 85
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Oats
+    sci_name: Avena sativa
+    fao_code: 104
+    cycle_days: 105
+    season_start: 90
+    season_end: 235
+    source: FAO Crop Calendar
+  - name: Rye
+    sci_name: Secale cereale
+    fao_code: 105
+    cycle_days: 115
+    season_start: 80
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Triticale
+    sci_name: Triticosecale
+    fao_code: 106
+    cycle_days: 115
+    season_start: 85
+    season_end: 235
+    source: FAO Crop Calendar
+  - name: Maize
+    sci_name: Zea mays
+    fao_code: 107
+    cycle_days: 120
+    season_start: 100
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Sorghum
+    sci_name: Sorghum bicolor
+    fao_code: 108
+    cycle_days: 125
+    season_start: 100
+    season_end: 260
+    source: FAO Crop Calendar
+  - name: Pearl Millet
+    sci_name: Pennisetum glaucum
+    fao_code: 109
+    cycle_days: 105
+    season_start: 95
+    season_end: 235
+    source: FAO Crop Calendar
+  - name: Finger Millet
+    sci_name: Eleusine coracana
+    fao_code: 110
+    cycle_days: 110
+    season_start: 95
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Proso Millet
+    sci_name: Panicum miliaceum
+    fao_code: 111
+    cycle_days: 95
+    season_start: 90
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Foxtail Millet
+    sci_name: Setaria italica
+    fao_code: 112
+    cycle_days: 95
+    season_start: 85
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Teff
+    sci_name: Eragrostis tef
+    fao_code: 113
+    cycle_days: 95
+    season_start: 100
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Quinoa
+    sci_name: Chenopodium quinoa
+    fao_code: 114
+    cycle_days: 115
+    season_start: 85
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Buckwheat
+    sci_name: Fagopyrum esculentum
+    fao_code: 115
+    cycle_days: 90
+    season_start: 95
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Fonio
+    sci_name: Digitaria exilis
+    fao_code: 116
+    cycle_days: 90
+    season_start: 100
+    season_end: 220
+    source: FAO Crop Calendar
+Irrigated & Paddy Rice:
+  - name: Lowland Rice
+    sci_name: Oryza sativa
+    fao_code: 201
+    cycle_days: 140
+    season_start: 90
+    season_end: 260
+    source: FAO Crop Calendar
+  - name: Upland Rice
+    sci_name: Oryza sativa
+    fao_code: 202
+    cycle_days: 130
+    season_start: 90
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Deepwater Rice
+    sci_name: Oryza sativa
+    fao_code: 203
+    cycle_days: 170
+    season_start: 80
+    season_end: 270
+    source: FAO Crop Calendar
+  - name: Boro Rice
+    sci_name: Oryza sativa
+    fao_code: 204
+    cycle_days: 150
+    season_start: 10
+    season_end: 170
+    source: FAO Crop Calendar
+  - name: Aman Rice
+    sci_name: Oryza sativa
+    fao_code: 205
+    cycle_days: 160
+    season_start: 180
+    season_end: 340
+    source: FAO Crop Calendar
+  - name: Aus Rice
+    sci_name: Oryza sativa
+    fao_code: 206
+    cycle_days: 125
+    season_start: 120
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Aromatic Rice
+    sci_name: Oryza sativa
+    fao_code: 207
+    cycle_days: 150
+    season_start: 100
+    season_end: 260
+    source: FAO Crop Calendar
+  - name: Glutinous Rice
+    sci_name: Oryza sativa var. glutinosa
+    fao_code: 208
+    cycle_days: 145
+    season_start: 95
+    season_end: 255
+    source: FAO Crop Calendar
+Pulses & Food Legumes:
+  - name: Chickpea
+    sci_name: Cicer arietinum
+    fao_code: 301
+    cycle_days: 120
+    season_start: 90
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Lentil
+    sci_name: Lens culinaris
+    fao_code: 302
+    cycle_days: 110
+    season_start: 80
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Common Bean
+    sci_name: Phaseolus vulgaris
+    fao_code: 303
+    cycle_days: 95
+    season_start: 100
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Lima Bean
+    sci_name: Phaseolus lunatus
+    fao_code: 304
+    cycle_days: 105
+    season_start: 100
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Tepary Bean
+    sci_name: Phaseolus acutifolius
+    fao_code: 305
+    cycle_days: 90
+    season_start: 95
+    season_end: 215
+    source: FAO Crop Calendar
+  - name: Scarlet Runner Bean
+    sci_name: Phaseolus coccineus
+    fao_code: 306
+    cycle_days: 120
+    season_start: 100
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Pigeon Pea
+    sci_name: Cajanus cajan
+    fao_code: 307
+    cycle_days: 160
+    season_start: 90
+    season_end: 260
+    source: FAO Crop Calendar
+  - name: Cowpea
+    sci_name: Vigna unguiculata
+    fao_code: 308
+    cycle_days: 95
+    season_start: 95
+    season_end: 215
+    source: FAO Crop Calendar
+  - name: Mung Bean
+    sci_name: Vigna radiata
+    fao_code: 309
+    cycle_days: 85
+    season_start: 100
+    season_end: 205
+    source: FAO Crop Calendar
+  - name: Adzuki Bean
+    sci_name: Vigna angularis
+    fao_code: 310
+    cycle_days: 95
+    season_start: 95
+    season_end: 215
+    source: FAO Crop Calendar
+  - name: Black Gram
+    sci_name: Vigna mungo
+    fao_code: 311
+    cycle_days: 90
+    season_start: 95
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Bambara Groundnut
+    sci_name: Vigna subterranea
+    fao_code: 312
+    cycle_days: 140
+    season_start: 95
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Yardlong Bean
+    sci_name: Vigna unguiculata subsp. sesquipedalis
+    fao_code: 313
+    cycle_days: 90
+    season_start: 100
+    season_end: 215
+    source: FAO Crop Calendar
+  - name: Winged Bean
+    sci_name: Psophocarpus tetragonolobus
+    fao_code: 314
+    cycle_days: 150
+    season_start: 90
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Lablab Bean
+    sci_name: Lablab purpureus
+    fao_code: 315
+    cycle_days: 150
+    season_start: 90
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Sword Bean
+    sci_name: Canavalia gladiata
+    fao_code: 316
+    cycle_days: 160
+    season_start: 95
+    season_end: 255
+    source: FAO Crop Calendar
+  - name: Jack Bean
+    sci_name: Canavalia ensiformis
+    fao_code: 317
+    cycle_days: 160
+    season_start: 95
+    season_end: 255
+    source: FAO Crop Calendar
+  - name: Faba Bean
+    sci_name: Vicia faba
+    fao_code: 318
+    cycle_days: 120
+    season_start: 85
+    season_end: 235
+    source: FAO Crop Calendar
+  - name: Field Pea
+    sci_name: Pisum sativum
+    fao_code: 319
+    cycle_days: 110
+    season_start: 80
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Grass Pea
+    sci_name: Lathyrus sativus
+    fao_code: 320
+    cycle_days: 115
+    season_start: 85
+    season_end: 225
+    source: FAO Crop Calendar
+Oilseeds & Industrial Crops:
+  - name: Soybean
+    sci_name: Glycine max
+    fao_code: 401
+    cycle_days: 120
+    season_start: 95
+    season_end: 235
+    source: FAO Crop Calendar
+  - name: Sunflower
+    sci_name: Helianthus annuus
+    fao_code: 402
+    cycle_days: 120
+    season_start: 95
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Rapeseed
+    sci_name: Brassica napus
+    fao_code: 403
+    cycle_days: 135
+    season_start: 80
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Mustard
+    sci_name: Brassica juncea
+    fao_code: 404
+    cycle_days: 110
+    season_start: 80
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Groundnut
+    sci_name: Arachis hypogaea
+    fao_code: 405
+    cycle_days: 120
+    season_start: 100
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Sesame
+    sci_name: Sesamum indicum
+    fao_code: 406
+    cycle_days: 105
+    season_start: 95
+    season_end: 225
+    source: FAO Crop Calendar
+  - name: Linseed
+    sci_name: Linum usitatissimum
+    fao_code: 407
+    cycle_days: 115
+    season_start: 85
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Safflower
+    sci_name: Carthamus tinctorius
+    fao_code: 408
+    cycle_days: 130
+    season_start: 85
+    season_end: 235
+    source: FAO Crop Calendar
+  - name: Niger Seed
+    sci_name: Guizotia abyssinica
+    fao_code: 409
+    cycle_days: 120
+    season_start: 95
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Castor
+    sci_name: Ricinus communis
+    fao_code: 410
+    cycle_days: 180
+    season_start: 95
+    season_end: 275
+    source: FAO Crop Calendar
+  - name: Camelina
+    sci_name: Camelina sativa
+    fao_code: 411
+    cycle_days: 95
+    season_start: 80
+    season_end: 205
+    source: FAO Crop Calendar
+  - name: Jatropha
+    sci_name: Jatropha curcas
+    fao_code: 412
+    cycle_days: 300
+    season_start: 70
+    season_end: 330
+    source: FAO Crop Calendar
+  - name: Oil Palm
+    sci_name: Elaeis guineensis
+    fao_code: 413
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Coconut
+    sci_name: Cocos nucifera
+    fao_code: 414
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Cottonseed
+    sci_name: Gossypium hirsutum
+    fao_code: 415
+    cycle_days: 170
+    season_start: 90
+    season_end: 260
+    source: FAO Crop Calendar
+  - name: Poppy
+    sci_name: Papaver somniferum
+    fao_code: 416
+    cycle_days: 120
+    season_start: 85
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Perilla
+    sci_name: Perilla frutescens
+    fao_code: 417
+    cycle_days: 110
+    season_start: 95
+    season_end: 225
+    source: FAO Crop Calendar
+  - name: Evening Primrose
+    sci_name: Oenothera biennis
+    fao_code: 418
+    cycle_days: 150
+    season_start: 90
+    season_end: 240
+    source: FAO Crop Calendar
+Roots, Tubers & Rhizomes:
+  - name: Potato
+    sci_name: Solanum tuberosum
+    fao_code: 501
+    cycle_days: 130
+    season_start: 90
+    season_end: 235
+    source: FAO Crop Calendar
+  - name: Sweet Potato
+    sci_name: Ipomoea batatas
+    fao_code: 502
+    cycle_days: 120
+    season_start: 95
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Cassava
+    sci_name: Manihot esculenta
+    fao_code: 503
+    cycle_days: 300
+    season_start: 1
+    season_end: 300
+    source: FAO Crop Calendar
+  - name: Yam
+    sci_name: Dioscorea rotundata
+    fao_code: 504
+    cycle_days: 210
+    season_start: 60
+    season_end: 270
+    source: FAO Crop Calendar
+  - name: Taro
+    sci_name: Colocasia esculenta
+    fao_code: 505
+    cycle_days: 240
+    season_start: 60
+    season_end: 300
+    source: FAO Crop Calendar
+  - name: Cocoyam
+    sci_name: Xanthosoma sagittifolium
+    fao_code: 506
+    cycle_days: 240
+    season_start: 60
+    season_end: 300
+    source: FAO Crop Calendar
+  - name: Jerusalem Artichoke
+    sci_name: Helianthus tuberosus
+    fao_code: 507
+    cycle_days: 130
+    season_start: 90
+    season_end: 235
+    source: FAO Crop Calendar
+  - name: Arrowroot
+    sci_name: Maranta arundinacea
+    fao_code: 508
+    cycle_days: 250
+    season_start: 70
+    season_end: 320
+    source: FAO Crop Calendar
+  - name: Lotus Root
+    sci_name: Nelumbo nucifera
+    fao_code: 509
+    cycle_days: 180
+    season_start: 70
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Ginger
+    sci_name: Zingiber officinale
+    fao_code: 510
+    cycle_days: 240
+    season_start: 60
+    season_end: 300
+    source: FAO Crop Calendar
+  - name: Turmeric
+    sci_name: Curcuma longa
+    fao_code: 511
+    cycle_days: 240
+    season_start: 60
+    season_end: 300
+    source: FAO Crop Calendar
+  - name: Beetroot
+    sci_name: Beta vulgaris
+    fao_code: 512
+    cycle_days: 110
+    season_start: 80
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Carrot
+    sci_name: Daucus carota
+    fao_code: 513
+    cycle_days: 100
+    season_start: 80
+    season_end: 200
+    source: FAO Crop Calendar
+  - name: Radish
+    sci_name: Raphanus sativus
+    fao_code: 514
+    cycle_days: 70
+    season_start: 60
+    season_end: 150
+    source: FAO Crop Calendar
+Vegetables & Culinary Herbs:
+  - name: Tomato
+    sci_name: Solanum lycopersicum
+    fao_code: 601
+    cycle_days: 110
+    season_start: 95
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Bell Pepper
+    sci_name: Capsicum annuum var. grossum
+    fao_code: 602
+    cycle_days: 130
+    season_start: 100
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Chili Pepper
+    sci_name: Capsicum chinense
+    fao_code: 603
+    cycle_days: 150
+    season_start: 100
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Eggplant
+    sci_name: Solanum melongena
+    fao_code: 604
+    cycle_days: 140
+    season_start: 100
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Cucumber
+    sci_name: Cucumis sativus
+    fao_code: 605
+    cycle_days: 70
+    season_start: 90
+    season_end: 170
+    source: FAO Crop Calendar
+  - name: Zucchini
+    sci_name: Cucurbita pepo var. cylindrica
+    fao_code: 606
+    cycle_days: 65
+    season_start: 90
+    season_end: 165
+    source: FAO Crop Calendar
+  - name: Pumpkin
+    sci_name: Cucurbita maxima
+    fao_code: 607
+    cycle_days: 130
+    season_start: 90
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Butternut Squash
+    sci_name: Cucurbita moschata
+    fao_code: 608
+    cycle_days: 120
+    season_start: 95
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Watermelon
+    sci_name: Citrullus lanatus
+    fao_code: 609
+    cycle_days: 100
+    season_start: 95
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Cantaloupe
+    sci_name: Cucumis melo
+    fao_code: 610
+    cycle_days: 95
+    season_start: 95
+    season_end: 205
+    source: FAO Crop Calendar
+  - name: Cabbage
+    sci_name: Brassica oleracea var. capitata
+    fao_code: 611
+    cycle_days: 110
+    season_start: 80
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Cauliflower
+    sci_name: Brassica oleracea var. botrytis
+    fao_code: 612
+    cycle_days: 110
+    season_start: 80
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Broccoli
+    sci_name: Brassica oleracea var. italica
+    fao_code: 613
+    cycle_days: 90
+    season_start: 80
+    season_end: 200
+    source: FAO Crop Calendar
+  - name: Kale
+    sci_name: Brassica oleracea var. sabellica
+    fao_code: 614
+    cycle_days: 75
+    season_start: 70
+    season_end: 180
+    source: FAO Crop Calendar
+  - name: Collard Greens
+    sci_name: Brassica oleracea var. viridis
+    fao_code: 615
+    cycle_days: 90
+    season_start: 75
+    season_end: 200
+    source: FAO Crop Calendar
+  - name: Lettuce
+    sci_name: Lactuca sativa
+    fao_code: 616
+    cycle_days: 60
+    season_start: 70
+    season_end: 150
+    source: FAO Crop Calendar
+  - name: Spinach
+    sci_name: Spinacia oleracea
+    fao_code: 617
+    cycle_days: 55
+    season_start: 65
+    season_end: 140
+    source: FAO Crop Calendar
+  - name: Swiss Chard
+    sci_name: Beta vulgaris subsp. cicla
+    fao_code: 618
+    cycle_days: 70
+    season_start: 70
+    season_end: 160
+    source: FAO Crop Calendar
+  - name: Arugula
+    sci_name: Eruca sativa
+    fao_code: 619
+    cycle_days: 45
+    season_start: 60
+    season_end: 130
+    source: FAO Crop Calendar
+  - name: Celery
+    sci_name: Apium graveolens
+    fao_code: 620
+    cycle_days: 130
+    season_start: 90
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Fennel
+    sci_name: Foeniculum vulgare
+    fao_code: 621
+    cycle_days: 120
+    season_start: 90
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Onion
+    sci_name: Allium cepa
+    fao_code: 622
+    cycle_days: 150
+    season_start: 70
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Garlic
+    sci_name: Allium sativum
+    fao_code: 623
+    cycle_days: 210
+    season_start: 40
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Leek
+    sci_name: Allium ampeloprasum
+    fao_code: 624
+    cycle_days: 150
+    season_start: 70
+    season_end: 230
+    source: FAO Crop Calendar
+  - name: Shallot
+    sci_name: Allium cepa var. aggregatum
+    fao_code: 625
+    cycle_days: 120
+    season_start: 70
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Scallion
+    sci_name: Allium fistulosum
+    fao_code: 626
+    cycle_days: 70
+    season_start: 60
+    season_end: 150
+    source: FAO Crop Calendar
+  - name: Okra
+    sci_name: Abelmoschus esculentus
+    fao_code: 627
+    cycle_days: 110
+    season_start: 100
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Bitter Gourd
+    sci_name: Momordica charantia
+    fao_code: 628
+    cycle_days: 120
+    season_start: 95
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Bottle Gourd
+    sci_name: Lagenaria siceraria
+    fao_code: 629
+    cycle_days: 120
+    season_start: 95
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Sponge Gourd
+    sci_name: Luffa aegyptiaca
+    fao_code: 630
+    cycle_days: 120
+    season_start: 95
+    season_end: 220
+    source: FAO Crop Calendar
+Fruits, Nuts & Tree Crops:
+  - name: Apple
+    sci_name: Malus domestica
+    fao_code: 701
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Pear
+    sci_name: Pyrus communis
+    fao_code: 702
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Peach
+    sci_name: Prunus persica
+    fao_code: 703
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Plum
+    sci_name: Prunus domestica
+    fao_code: 704
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Apricot
+    sci_name: Prunus armeniaca
+    fao_code: 705
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Cherry
+    sci_name: Prunus avium
+    fao_code: 706
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Nectarine
+    sci_name: Prunus persica var. nucipersica
+    fao_code: 707
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Grape
+    sci_name: Vitis vinifera
+    fao_code: 708
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Kiwi
+    sci_name: Actinidia deliciosa
+    fao_code: 709
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Strawberry
+    sci_name: Fragaria × ananassa
+    fao_code: 710
+    cycle_days: 180
+    season_start: 30
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Raspberry
+    sci_name: Rubus idaeus
+    fao_code: 711
+    cycle_days: 210
+    season_start: 1
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Blueberry
+    sci_name: Vaccinium corymbosum
+    fao_code: 712
+    cycle_days: 210
+    season_start: 1
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Blackberry
+    sci_name: Rubus fruticosus
+    fao_code: 713
+    cycle_days: 210
+    season_start: 1
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Cranberry
+    sci_name: Vaccinium macrocarpon
+    fao_code: 714
+    cycle_days: 210
+    season_start: 1
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Pomegranate
+    sci_name: Punica granatum
+    fao_code: 715
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Fig
+    sci_name: Ficus carica
+    fao_code: 716
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Date Palm
+    sci_name: Phoenix dactylifera
+    fao_code: 717
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Olive
+    sci_name: Olea europaea
+    fao_code: 718
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Almond
+    sci_name: Prunus dulcis
+    fao_code: 719
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Walnut
+    sci_name: Juglans regia
+    fao_code: 720
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Hazelnut
+    sci_name: Corylus avellana
+    fao_code: 721
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Pistachio
+    sci_name: Pistacia vera
+    fao_code: 722
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Mango
+    sci_name: Mangifera indica
+    fao_code: 723
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Papaya
+    sci_name: Carica papaya
+    fao_code: 724
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Banana
+    sci_name: Musa acuminata
+    fao_code: 725
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Plantain
+    sci_name: Musa × paradisiaca
+    fao_code: 726
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+Plantation & Stimulant Crops:
+  - name: Arabica Coffee
+    sci_name: Coffea arabica
+    fao_code: 801
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Robusta Coffee
+    sci_name: Coffea canephora
+    fao_code: 802
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Cocoa
+    sci_name: Theobroma cacao
+    fao_code: 803
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Tea
+    sci_name: Camellia sinensis
+    fao_code: 804
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Sugarcane
+    sci_name: Saccharum officinarum
+    fao_code: 805
+    cycle_days: 360
+    season_start: 1
+    season_end: 330
+    source: FAO Crop Calendar
+  - name: Rubber
+    sci_name: Hevea brasiliensis
+    fao_code: 806
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Tobacco
+    sci_name: Nicotiana tabacum
+    fao_code: 807
+    cycle_days: 120
+    season_start: 80
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Vanilla
+    sci_name: Vanilla planifolia
+    fao_code: 808
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Kola Nut
+    sci_name: Cola acuminata
+    fao_code: 809
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Guarana
+    sci_name: Paullinia cupana
+    fao_code: 810
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+Forage & Pasture:
+  - name: Alfalfa
+    sci_name: Medicago sativa
+    fao_code: 901
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Red Clover
+    sci_name: Trifolium pratense
+    fao_code: 902
+    cycle_days: 250
+    season_start: 1
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: White Clover
+    sci_name: Trifolium repens
+    fao_code: 903
+    cycle_days: 250
+    season_start: 1
+    season_end: 250
+    source: FAO Crop Calendar
+  - name: Timothy Grass
+    sci_name: Phleum pratense
+    fao_code: 904
+    cycle_days: 140
+    season_start: 60
+    season_end: 200
+    source: FAO Crop Calendar
+  - name: Perennial Ryegrass
+    sci_name: Lolium perenne
+    fao_code: 905
+    cycle_days: 120
+    season_start: 60
+    season_end: 180
+    source: FAO Crop Calendar
+  - name: Tall Fescue
+    sci_name: Festuca arundinacea
+    fao_code: 906
+    cycle_days: 150
+    season_start: 60
+    season_end: 210
+    source: FAO Crop Calendar
+  - name: Bermuda Grass
+    sci_name: Cynodon dactylon
+    fao_code: 907
+    cycle_days: 200
+    season_start: 40
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Napier Grass
+    sci_name: Pennisetum purpureum
+    fao_code: 908
+    cycle_days: 240
+    season_start: 1
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Sorghum-Sudan Grass
+    sci_name: Sorghum bicolor × S. sudanense
+    fao_code: 909
+    cycle_days: 120
+    season_start: 80
+    season_end: 200
+    source: FAO Crop Calendar
+  - name: Switchgrass
+    sci_name: Panicum virgatum
+    fao_code: 910
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+Fiber & Bioindustrial:
+  - name: Cotton
+    sci_name: Gossypium hirsutum
+    fao_code: 1001
+    cycle_days: 170
+    season_start: 90
+    season_end: 260
+    source: FAO Crop Calendar
+  - name: Kenaf
+    sci_name: Hibiscus cannabinus
+    fao_code: 1002
+    cycle_days: 150
+    season_start: 90
+    season_end: 240
+    source: FAO Crop Calendar
+  - name: Jute
+    sci_name: Corchorus capsularis
+    fao_code: 1003
+    cycle_days: 150
+    season_start: 95
+    season_end: 245
+    source: FAO Crop Calendar
+  - name: Roselle
+    sci_name: Hibiscus sabdariffa
+    fao_code: 1004
+    cycle_days: 150
+    season_start: 95
+    season_end: 245
+    source: FAO Crop Calendar
+  - name: Hemp
+    sci_name: Cannabis sativa
+    fao_code: 1005
+    cycle_days: 120
+    season_start: 90
+    season_end: 220
+    source: FAO Crop Calendar
+  - name: Ramie
+    sci_name: Boehmeria nivea
+    fao_code: 1006
+    cycle_days: 300
+    season_start: 1
+    season_end: 300
+    source: FAO Crop Calendar
+  - name: Sisal
+    sci_name: Agave sisalana
+    fao_code: 1007
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Abaca
+    sci_name: Musa textilis
+    fao_code: 1008
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Kapok
+    sci_name: Ceiba pentandra
+    fao_code: 1009
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  - name: Broomcorn
+    sci_name: Sorghum bicolor var. technicum
+    fao_code: 1010
+    cycle_days: 120
+    season_start: 90
+    season_end: 220
+    source: FAO Crop Calendar

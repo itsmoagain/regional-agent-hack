@@ -1,0 +1,37 @@
+# Default insight configuration shared across regions.
+# Regions extend this file and override keys as needed.
+baseline:
+  start_year: 2015
+  end_year: 2023
+outputs:
+  daily: true
+  monthly: true
+  include_climatology: true
+  include_rolling: true
+region_meta:
+  name: "UNSET"
+  country: "UNSET"
+  bbox: []
+  crops: []
+  phenology_library: config/phenology/
+rolling:
+  window_days: 30
+  min_periods: 5
+windows:
+  spi_short: 30
+  spi_long: 90
+  plot_context_days: 60
+variables:
+  precipitation:
+    column: precip_mm_sum
+    enabled: true
+  temperature:
+    column: t2m_mean
+    enabled: true
+  soil_moisture:
+    column: soil_surface_moisture
+    enabled: true
+  vegetation:
+    column: ndvi
+    enabled: true
+rules: []

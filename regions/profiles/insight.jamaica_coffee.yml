@@ -1,0 +1,40 @@
+extends: insight.defaults.yml
+region_meta:
+  name: Jamaica Blue Mountain Coffee Belt
+  country: Jamaica
+  bbox:
+    - -76.85
+    - 17.90
+    - -76.40
+    - 18.30
+  crops:
+    - Coffee
+  notes: "Arabica coffee estates across the Blue and John Crow Mountains"
+baseline:
+  start_year: 2015
+  end_year: 2023
+rules:
+  - id: jm_cool_spell
+    label: 'Blue Mountain: Cool spell impacting flowering'
+    when:
+      all:
+        - var: t2m_min
+          op: '<'
+          value: 15.0
+        - var: precip_mm_sum_anomaly_roll
+          op: '>'
+          value: 0.4
+  - id: jm_dry_stress
+    label: 'Blue Mountain: Dry season stress on coffee'
+    when:
+      all:
+        - var: precip_mm_sum_anomaly_clim
+          op: '<'
+          value: -0.7
+        - var: ndvi_zscore
+          op: '<'
+          value: -0.6
+windows:
+  spi_short: 45
+  spi_long: 120
+  plot_context_days: 90

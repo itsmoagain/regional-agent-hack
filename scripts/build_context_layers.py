@@ -3,7 +3,7 @@
 Build static context layers for a given region.
 
 Reads from:
-  config/insight.<region>.yml → to get bbox + crop list
+  regions/profiles/insight.<region>.yml → to get bbox + crop list
 
 Fetches:
   - 🌾 Crop phenology (via Open-Meteo temperature/GDD)
@@ -29,6 +29,8 @@ import numpy as np
 import pandas as pd
 import requests
 import yaml
+
+from _shared import load_region_profile, resolve_region_config_path
 
 
 # -------------------------------------------------------
@@ -240,16 +242,12 @@ def fetch_elevation(lat: float, lon: float, out_dir: Path) -> pd.DataFrame:
 # -------------------------------------------------------
 def build_context_layers(region_name: str):
     root = Path(__file__).resolve().parents[1]
-    cfg_path = root / "config" / f"insight.{region_name}.yml"
+    cfg_path = resolve_region_config_path(region_name)
     region_dir = root / "data" / region_name
     ctx_dir = region_dir / "context_layers"
     ctx_dir.mkdir(parents=True, exist_ok=True)
 
-    if not cfg_path.exists():
-        print(f"❌ Config not found: {cfg_path}")
-        return
-
-    cfg = yaml.safe_load(open(cfg_path))
+    cfg = load_region_profile(region_name)
     bbox = cfg.get("region_meta", {}).get("bbox", [None, None, None, None])
     crops = cfg.get("region_meta", {}).get("crops", ["generic_crop"])
 
@@ -298,11 +296,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.crop:
-        cfg_path = Path(__file__).resolve().parents[1] / "config" / f"insight.{args.region}.yml"
-        if cfg_path.exists():
-            cfg = yaml.safe_load(open(cfg_path))
-            cfg.setdefault("region_meta", {})["crops"] = args.crop
-            yaml.safe_dump(cfg, open(cfg_path, "w"), sort_keys=False)
-            print(f"🌾 Overrode crops in config → {args.crop}")
+        cfg_path = resolve_region_config_path(args.region)
+        cfg = yaml.safe_load(open(cfg_path))
+        cfg.setdefault("region_meta", {})["crops"] = args.crop
+        yaml.safe_dump(cfg, open(cfg_path, "w"), sort_keys=False)
+        print(f"🌾 Overrode crops in profile → {args.crop}")
 
     build_context_layers(args.region)
