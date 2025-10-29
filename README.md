@@ -135,6 +135,17 @@ python scripts/run_pipeline.py --region hungary_farmland --analyze --allow-stale
 
 - `.github/workflows/test-run.yml` runs `--analyze --allow-stale` on every push to guarantee the repository stays runnable offline.
 - `.github/workflows/monthly-refresh.yml` opens a scheduled online window on the first of each month to refresh caches, upload manifests, and push the updated `data/<region>/current/` view.
+### 🚀 Run the end-to-end pipeline
+
+You can run the full regional workflow (initialization → fetch → cache → insights → model training) with a single command:
+
+```bash
+python scripts/run_pipeline.py --region hungary_farmland
+```
+
+Add flags such as `--skip-fetch`, `--skip-train`, or `--report reports/hungary_pipeline.json` to customize what runs and to capture a machine-readable summary of each stage.
+
+> ℹ️ The pipeline automatically calls `scripts/init_region.py` for you. Keep `init_region` handy for manual setup or tweaking metadata, but use `run_pipeline` when you want the full orchestration in one go.
 
 Recommended Python: 3.12.x
 Compatible with: Kaggle notebooks and GitHub Actions CPU runners
