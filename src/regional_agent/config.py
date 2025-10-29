@@ -4,7 +4,22 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-import yaml
+try:
+    from scripts.run_pipeline import require
+except Exception:  # pragma: no cover - fallback for isolated package usage
+    import importlib
+
+    def require(pkg: str, import_name: str | None = None):  # type: ignore
+        module_name = import_name or pkg
+        return importlib.import_module(module_name)
+
+
+yaml = require("pyyaml", "yaml")
+if yaml is None:
+    raise RuntimeError(
+        "PyYAML is required for regional_agent.config. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
 
 ROOT = Path(__file__).resolve().parents[2]
 REGION_PROFILES_DIR = ROOT / "regions" / "profiles"

@@ -18,8 +18,19 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
-import yaml
 import os
+
+try:
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback for direct execution
+    from run_pipeline import require  # type: ignore
+
+yaml = require("pyyaml", "yaml")
+if yaml is None:
+    raise RuntimeError(
+        "PyYAML is required for fetch_all. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
 
 from _shared import load_region_profile
 

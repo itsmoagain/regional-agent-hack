@@ -14,26 +14,30 @@ Now includes:
   ✅ BBOX + crop list + metadata hooks for context layers
   ✅ Automatic context layer generation (soil, elevation, phenology)
 """
-import os, sys, subprocess
+import os
 import sys
-
-# Ensure critical dependencies before doing anything
-required = ["pyyaml", "pandas", "requests"]
-missing = []
-for pkg in required:
-    try:
-        __import__(pkg)
-    except ImportError:
-        missing.append(pkg)
-
-if missing:
-    print(f"📦 Installing missing dependencies: {', '.join(missing)} ...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", *missing])
-else:
-    print("✅ Environment ready — all dependencies found.")
-import yaml
-from pathlib import Path
 import subprocess
+from pathlib import Path
+
+try:
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback when executed directly
+    from run_pipeline import require  # type: ignore
+
+
+def _require_or_fail(pkg: str, import_name: str | None = None):
+    module = require(pkg, import_name)
+    if module is None:
+        raise RuntimeError(
+            f"Missing required dependency '{pkg}'. "
+            "Disable OFFLINE_MODE or install the package manually."
+        )
+    return module
+
+
+yaml = _require_or_fail("pyyaml", "yaml")
+_require_or_fail("pandas")
+_require_or_fail("requests")
 
 # -------------------------
 # Default Config Template
