@@ -116,5 +116,15 @@ pip install -r requirements.txt
 python scripts/build_region_cache.py --region hungary_farmland --track
 ```
 
+### 🚀 Run the end-to-end pipeline
+
+You can run the full regional workflow (initialization → fetch → cache → insights → model training) with a single command:
+
+```bash
+python scripts/run_pipeline.py --region hungary_farmland
+```
+
+Add flags such as `--skip-fetch`, `--skip-train`, or `--report reports/hungary_pipeline.json` to customize what runs and to capture a machine-readable summary of each stage.
+
 Recommended Python: 3.12.x  
 Compatible with: Kaggle notebooks and GitHub Actions CPU runners
