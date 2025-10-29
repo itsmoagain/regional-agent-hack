@@ -113,8 +113,39 @@ The mesh expands organically, forming a planetary network of small, efficient cl
 git clone https://github.com/itsmoagain/regional-agent-hack.git
 cd regional-agent-hack
 pip install -r requirements.txt
-python scripts/build_region_cache.py --region hungary_farmland --track
+
+# One-time bootstrap (online)
+python scripts/run_pipeline.py --region hungary_farmland --bootstrap
+
+# Scheduled refresh (online)
+python scripts/run_pipeline.py --region hungary_farmland --refresh
+
+# Day-to-day analysis (offline)
+python scripts/run_pipeline.py --region hungary_farmland --analyze --allow-stale
 ```
 
-Recommended Python: 3.12.x  
+### Pipeline modes & data layout
+
+- `--bootstrap` performs the first end-to-end fetch for a region, materialising every required layer into `data/<region>/caches/<timestamp>` and promoting it to `data/<region>/current/`.
+- `--refresh` only re-fetches layers whose TTL has expired, creating a new dated snapshot before updating `current/` atomically.
+- `--analyze` never touches the network. It validates cache freshness (respecting `--allow-stale` and `--max-staleness`) and rebuilds insights from the data stored under `data/<region>/current/`.
+- Each snapshot writes a provenance manifest (`manifest.json`) capturing fetch metadata, hashes, TTL policies, and expiry timestamps.
+
+### CI guardrails
+
+- `.github/workflows/test-run.yml` runs `--analyze --allow-stale` on every push to guarantee the repository stays runnable offline.
+- `.github/workflows/monthly-refresh.yml` opens a scheduled online window on the first of each month to refresh caches, upload manifests, and push the updated `data/<region>/current/` view.
+### 🚀 Run the end-to-end pipeline
+
+You can run the full regional workflow (initialization → fetch → cache → insights → model training) with a single command:
+
+```bash
+python scripts/run_pipeline.py --region hungary_farmland
+```
+
+Add flags such as `--skip-fetch`, `--skip-train`, or `--report reports/hungary_pipeline.json` to customize what runs and to capture a machine-readable summary of each stage.
+
+> ℹ️ The pipeline automatically calls `scripts/init_region.py` for you. Keep `init_region` handy for manual setup or tweaking metadata, but use `run_pipeline` when you want the full orchestration in one go.
+
+Recommended Python: 3.12.x
 Compatible with: Kaggle notebooks and GitHub Actions CPU runners

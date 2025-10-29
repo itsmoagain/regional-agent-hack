@@ -16,6 +16,11 @@ Now includes:
 """
 import os
 import sys
+from __future__ import annotations
+
+import sys
+from importlib import import_module
+from pathlib import Path
 import subprocess
 from pathlib import Path
 
@@ -38,6 +43,26 @@ def _require_or_fail(pkg: str, import_name: str | None = None):
 yaml = _require_or_fail("pyyaml", "yaml")
 _require_or_fail("pandas")
 _require_or_fail("requests")
+
+from _shared import (
+    get_region_cache_dir,
+    get_region_current_dir,
+    get_region_data_root,
+)
+
+def _require(module: str, *, package: str | None = None):
+    """Import ``module`` or raise a friendly error instructing how to install it."""
+
+    try:
+        return import_module(module)
+    except ImportError as exc:  # pragma: no cover - CLI guard rail
+        pkg = package or module
+        raise SystemExit(
+            f"Missing dependency: {pkg}. Install it with "
+            f"`pip install {pkg}` or add it to your environment file before "
+            "running `scripts/init_region.py`."
+        ) from exc
+_YAML = None
 
 # -------------------------
 # Default Config Template
@@ -165,16 +190,23 @@ def init_region(region_name: str, bbox=None, crops=None, country=None):
     config_dir.mkdir(parents=True, exist_ok=True)  # ✅ ensure profile directory exists
 
     cfg_path = config_dir / f"insight.{region_name}.yml"
-    data_dir = Path("data") / region_name
+    data_root = get_region_data_root(region_name)
+    get_region_cache_dir(region_name)
+    get_region_current_dir(region_name)
 
     # Create directories
-    for sub in ["flags", "plots", "context_layers"]:
-        (data_dir / sub).mkdir(parents=True, exist_ok=True)
+    for sub in ["flags", "plots"]:
+        (data_root / sub).mkdir(parents=True, exist_ok=True)
+    (data_root / "context_layers").mkdir(parents=True, exist_ok=True)
 
     # If YAML exists, don’t overwrite
     if cfg_path.exists():
         print(f"⚙️  Config already exists for {region_name} — skipping creation.")
     else:
+        global _YAML
+        if _YAML is None:
+            _YAML = _require("yaml", package="pyyaml")
+        yaml = _YAML
         # Generate new config
         region_id = region_name.split("_")[0][:2].lower()
         config_content = yaml.safe_load(yaml.dump(DEFAULTS))
@@ -196,7 +228,7 @@ def init_region(region_name: str, bbox=None, crops=None, country=None):
         cfg_path.write_text(yaml.safe_dump(config_content, sort_keys=False))
         print(f"✅ Created {cfg_path}")
 
-    print(f"✅ Initialized data/{region_name}/flags, plots, and context_layers directories")
+    print(f"✅ Initialized data/{region_name}/flags, plots, context_layers, caches, and current directories")
     print(f"🗺️  Region meta saved in {cfg_path}")
 
     # -------------------------------------------------
@@ -204,8 +236,9 @@ def init_region(region_name: str, bbox=None, crops=None, country=None):
     # -------------------------------------------------
     print(f"🌎 Fetching soil, elevation, and phenology context for {region_name}...")
     try:
-        subprocess.run([sys.executable, "scripts/build_context_layers.py", "--region", region_name],
-            check=True
+        subprocess.run(
+            [sys.executable, "scripts/build_context_layers.py", "--region", region_name],
+            check=True,
         )
         print("✅ Context layers generated successfully.")
     except Exception as e:

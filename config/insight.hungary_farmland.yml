@@ -1,0 +1,39 @@
+# Data layer registry for ${region} insight pipeline
+# Mirrors Austin defaults but allows per-region TTL overrides.
+data_layers:
+  chirps_daily:
+    fetcher: chirps_gee
+    cache_file: chirps_gee.csv
+    ttl_days: 30
+    required: true
+    source_url: https://developers.google.com/earth-engine/datasets/catalog/UCSB-CHG_CHIRPS_DAILY
+    fetch:
+      mode: active
+      bootstrap_mode: full
+  openmeteo_hourly:
+    fetcher: openmeteo_api
+    cache_file: openmeteo.csv
+    ttl_days: 14
+    required: true
+    source_url: https://open-meteo.com/en/docs/era5-api
+    fetch:
+      mode: active
+      bootstrap_mode: full
+  modis_ndvi:
+    fetcher: modis_gee
+    cache_file: ndvi_gee.csv
+    ttl_days: 30
+    required: false
+    source_url: https://developers.google.com/earth-engine/datasets/catalog/MODIS_061_MOD13Q1
+    fetch:
+      mode: active
+      bootstrap_mode: full
+  smap_soil:
+    fetcher: soil_gee
+    cache_file: soil_gee.csv
+    ttl_days: 30
+    required: true
+    source_url: https://developers.google.com/earth-engine/datasets/catalog/NASA_USDA_HSL_SMAP_soil_moisture
+    fetch:
+      mode: active
+      bootstrap_mode: full

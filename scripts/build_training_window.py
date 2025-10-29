@@ -6,21 +6,24 @@ Usage:
     python scripts/build_training_window.py --region austin_farmland
 
 Generates:
-    data/<region>/training_window.csv
+    data/<region>/current/training_window.csv
 """
 
-import os
 import argparse
-import pandas as pd
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 from datetime import datetime
 
-def build_training_window(region: str):
-    base = os.path.join("data", region)
-    merged = os.path.join(base, "daily_merged.csv")
-    out_path = os.path.join(base, "training_window.csv")
+from _shared import get_region_current_dir
 
-    if not os.path.exists(merged):
+def build_training_window(region: str, base_dir: Path | None = None):
+    base_path = base_dir or get_region_current_dir(region)
+    merged = base_path / "daily_merged.csv"
+    out_path = base_path / "training_window.csv"
+
+    if not merged.exists():
         raise FileNotFoundError(f"Missing merged data file: {merged}")
 
     print(f"📦 Loading merged dataset → {merged}")
@@ -79,8 +82,13 @@ def build_training_window(region: str):
 def main():
     parser = argparse.ArgumentParser(description="Build training window for region.")
     parser.add_argument("--region", required=True, help="Region name, e.g. austin_farmland")
+    parser.add_argument(
+        "--base-dir",
+        type=Path,
+        help="Override output directory (defaults to data/<region>/current)",
+    )
     args = parser.parse_args()
-    build_training_window(args.region)
+    build_training_window(args.region, base_dir=args.base_dir)
 
 if __name__ == "__main__":
     main()

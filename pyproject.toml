@@ -8,7 +8,15 @@ version = "0.1.0"
 description = "Regional climate insight agent template"
 authors = [{ name = "Morgan Urich" }]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "pandas",
+    "numpy",
+    "requests",
+    "scikit-learn",
+    "matplotlib",
+    "pyyaml",
+    "joblib",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

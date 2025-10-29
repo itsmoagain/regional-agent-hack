@@ -6,21 +6,24 @@ Usage:
   python scripts/compute_anomalies.py --region austin_farmland --window 30
 
 This script:
-  • Loads merged daily dataset (data/<region>/daily_merged.csv)
+  • Loads merged daily dataset (data/<region>/current/daily_merged.csv)
   • Computes rolling mean and std for each numeric variable
   • Calculates z-score anomalies ((x - mean) / std)
-  • Saves enriched output → data/<region>/daily_anomalies.csv
+  • Saves enriched output → data/<region>/current/daily_anomalies.csv
   • Updates metadata.json
   • Optionally renders NDVI anomaly preview chart
 """
 
 import argparse
-import pandas as pd
-import numpy as np
 import json
 import sys
 from pathlib import Path
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from _shared import get_region_current_dir
 
 # ------------------------------------------------------------
 # Helper: Compute rolling z-scores
@@ -76,7 +79,7 @@ def plot_ndvi_anomalies(df, region_name, plot_format="svg"):
     plt.xlabel("Date")
     plt.ylabel("Z-Score")
     plt.tight_layout()
-    out_path = Path(f"data/{region_name}/ndvi_anomaly_preview.{plot_format}")
+    out_path = get_region_current_dir(region_name) / f"ndvi_anomaly_preview.{plot_format}"
     save_kwargs = {"dpi": 150} if plot_format.lower() == "png" else {}
     plt.savefig(out_path, **save_kwargs)
     plt.close()
@@ -98,7 +101,7 @@ def main():
     )
     args = parser.parse_args()
 
-    region_dir = Path("data") / args.region
+    region_dir = get_region_current_dir(args.region)
     input_path = region_dir / "daily_merged.csv"
     output_path = region_dir / "daily_anomalies.csv"
 
