@@ -3,19 +3,24 @@
 Build region cache by merging all fetcher outputs (CHIRPS, SMAP, NDVI, ERA5)
 into unified daily and monthly CSVs, with mixed-granularity alignment.
 
-Outputs:
-- data/<region>/daily_merged.csv
-- data/<region>/monthly_merged.csv
-- data/<region>/metadata.json
+Outputs (written to ``data/<region>/current``):
+- daily_merged.csv
+- monthly_merged.csv
+- metadata.json
 """
 
 import argparse
-import pandas as pd
-from pathlib import Path
 import json
 import subprocess
 import sys
-from _shared import load_region_profile
+from pathlib import Path
+
+import pandas as pd
+
+from _shared import (
+    get_region_current_dir,
+    load_region_profile,
+)
 
 # ------------------------------------------------------------
 # Ensure local dependencies before proceeding
@@ -91,8 +96,8 @@ def harmonize_to_daily(dfs: dict) -> tuple[pd.DataFrame, dict]:
 # ------------------------------------------------------------
 # Main build
 # ------------------------------------------------------------
-def build_region_cache(region: str):
-    base = Path("data") / region
+def build_region_cache(region: str, base_dir: Path | None = None):
+    base = base_dir or get_region_current_dir(region)
     if not base.exists():
         raise FileNotFoundError(f"Region folder not found: {base}")
 
@@ -190,5 +195,10 @@ def build_region_cache(region: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build region cache from fetcher outputs.")
     parser.add_argument("--region", required=True)
+    parser.add_argument(
+        "--base-dir",
+        type=Path,
+        help="Override output directory (defaults to data/<region>/current)",
+    )
     args = parser.parse_args()
-    build_region_cache(args.region)
+    build_region_cache(args.region, base_dir=args.base_dir)

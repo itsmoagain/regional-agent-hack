@@ -13,6 +13,10 @@ from regional_agent.config import (  # noqa: E402
     resolve_region_config_path,
     load_region_profile,
     ensure_region_workspace,
+    get_region_cache_dir,
+    get_region_current_dir,
+    get_region_data_root,
+    load_layer_registry,
 )
 
 __all__ = [
@@ -20,4 +24,8 @@ __all__ = [
     "resolve_region_config_path",
     "load_region_profile",
     "ensure_region_workspace",
+    "get_region_cache_dir",
+    "get_region_current_dir",
+    "get_region_data_root",
+    "load_layer_registry",
 ]

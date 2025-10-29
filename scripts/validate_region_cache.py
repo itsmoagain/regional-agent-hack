@@ -9,10 +9,13 @@ Usage:
 
 import argparse
 from pathlib import Path
+
 import pandas as pd
 
+from _shared import get_region_current_dir
+
 def validate_region_cache(region: str):
-    base = Path("data") / region
+    base = get_region_current_dir(region)
     daily_path = base / "daily_merged.csv"
     monthly_path = base / "monthly_merged.csv"
 
