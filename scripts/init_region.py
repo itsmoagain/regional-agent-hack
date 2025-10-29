@@ -14,26 +14,27 @@ Now includes:
   ✅ BBOX + crop list + metadata hooks for context layers
   ✅ Automatic context layer generation (soil, elevation, phenology)
 """
-import os, sys, subprocess
+from __future__ import annotations
+
 import sys
-
-# Ensure critical dependencies before doing anything
-required = ["pyyaml", "pandas", "requests"]
-missing = []
-for pkg in required:
-    try:
-        __import__(pkg)
-    except ImportError:
-        missing.append(pkg)
-
-if missing:
-    print(f"📦 Installing missing dependencies: {', '.join(missing)} ...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", *missing])
-else:
-    print("✅ Environment ready — all dependencies found.")
-import yaml
+from importlib import import_module
 from pathlib import Path
 import subprocess
+
+
+def _require(module: str, *, package: str | None = None):
+    """Import ``module`` or raise a friendly error instructing how to install it."""
+
+    try:
+        return import_module(module)
+    except ImportError as exc:  # pragma: no cover - CLI guard rail
+        pkg = package or module
+        raise SystemExit(
+            f"Missing dependency: {pkg}. Install it with "
+            f"`pip install {pkg}` or add it to your environment file before "
+            "running `scripts/init_region.py`."
+        ) from exc
+_YAML = None
 
 # -------------------------
 # Default Config Template
@@ -171,6 +172,10 @@ def init_region(region_name: str, bbox=None, crops=None, country=None):
     if cfg_path.exists():
         print(f"⚙️  Config already exists for {region_name} — skipping creation.")
     else:
+        global _YAML
+        if _YAML is None:
+            _YAML = _require("yaml", package="pyyaml")
+        yaml = _YAML
         # Generate new config
         region_id = region_name.split("_")[0][:2].lower()
         config_content = yaml.safe_load(yaml.dump(DEFAULTS))

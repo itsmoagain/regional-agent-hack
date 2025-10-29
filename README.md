@@ -126,5 +126,7 @@ python scripts/run_pipeline.py --region hungary_farmland
 
 Add flags such as `--skip-fetch`, `--skip-train`, or `--report reports/hungary_pipeline.json` to customize what runs and to capture a machine-readable summary of each stage.
 
-Recommended Python: 3.12.x  
+> ℹ️ The pipeline automatically calls `scripts/init_region.py` for you. Keep `init_region` handy for manual setup or tweaking metadata, but use `run_pipeline` when you want the full orchestration in one go.
+
+Recommended Python: 3.12.x
 Compatible with: Kaggle notebooks and GitHub Actions CPU runners

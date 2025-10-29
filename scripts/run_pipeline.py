@@ -34,11 +34,33 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # Local imports (deferred until after sys.path adjustments)
-from init_region import init_region  # type: ignore  # noqa: E402
-from fetch_all import main as fetch_all  # type: ignore  # noqa: E402
-from build_region_cache import build_region_cache  # type: ignore  # noqa: E402
-from build_region_insights import build_region_insights  # type: ignore  # noqa: E402
-from train_region_model import train_region_model  # type: ignore  # noqa: E402
+from importlib import import_module
+
+
+def _load_scripts():
+    """Import pipeline modules lazily to avoid hard failures during ``--help``."""
+
+    try:
+        init_region = import_module("init_region").init_region
+        fetch_all = import_module("fetch_all").main
+        build_region_cache = import_module("build_region_cache").build_region_cache
+        build_region_insights = import_module("build_region_insights").build_region_insights
+        train_region_model = import_module("train_region_model").train_region_model
+    except ModuleNotFoundError as exc:  # pragma: no cover - CLI path
+        missing = exc.name or "a required module"
+        raise SystemExit(
+            f"Missing dependency '{missing}'. "
+            "Ensure `pip install -r requirements.txt` (or the Kaggle environment) has been run "
+            "before executing the pipeline."
+        ) from exc
+
+    return (
+        init_region,
+        fetch_all,
+        build_region_cache,
+        build_region_insights,
+        train_region_model,
+    )
 
 
 def _step(label: str, func, *args, fail_fast: bool = True, **kwargs) -> Dict[str, str]:
@@ -80,6 +102,14 @@ def run_pipeline(
     fail_fast: bool = True,
 ) -> List[Dict[str, str]]:
     """Execute the requested steps for a region and return a status report."""
+
+    (
+        init_region,
+        fetch_all,
+        build_region_cache,
+        build_region_insights,
+        train_region_model,
+    ) = _load_scripts()
 
     report: List[Dict[str, str]] = []
 
