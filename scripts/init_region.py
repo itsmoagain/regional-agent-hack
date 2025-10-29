@@ -14,12 +14,35 @@ Now includes:
   ✅ BBOX + crop list + metadata hooks for context layers
   ✅ Automatic context layer generation (soil, elevation, phenology)
 """
+import os
+import sys
 from __future__ import annotations
 
 import sys
 from importlib import import_module
 from pathlib import Path
 import subprocess
+from pathlib import Path
+
+try:
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback when executed directly
+    from run_pipeline import require  # type: ignore
+
+
+def _require_or_fail(pkg: str, import_name: str | None = None):
+    module = require(pkg, import_name)
+    if module is None:
+        raise RuntimeError(
+            f"Missing required dependency '{pkg}'. "
+            "Disable OFFLINE_MODE or install the package manually."
+        )
+    return module
+
+
+yaml = _require_or_fail("pyyaml", "yaml")
+_require_or_fail("pandas")
+_require_or_fail("requests")
 
 from _shared import (
     get_region_cache_dir,

@@ -12,12 +12,35 @@ Output: data/<region>/context_layers/phenology_<crop>.csv
 """
 
 import argparse
-import requests
-import pandas as pd
 from pathlib import Path
 import json
 from datetime import datetime
-import yaml
+
+try:
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback when executed directly
+    from run_pipeline import require  # type: ignore
+
+requests = require("requests")
+if requests is None:
+    raise RuntimeError(
+        "Requests is required for fetch_phenology. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+pd = require("pandas")
+if pd is None:
+    raise RuntimeError(
+        "Pandas is required for fetch_phenology. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+yaml = require("pyyaml", "yaml")
+if yaml is None:
+    raise RuntimeError(
+        "PyYAML is required for fetch_phenology. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
 
 from _shared import load_region_profile
 from config.climate_zone_lookup import get_climate_zone

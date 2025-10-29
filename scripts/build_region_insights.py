@@ -14,11 +14,34 @@ Writes:
 
 import argparse
 from pathlib import Path
-import pandas as pd
-import numpy as np
 import shutil
 import sys
-import yaml
+
+try:
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback for direct execution
+    from run_pipeline import require  # type: ignore
+
+pd = require("pandas")
+if pd is None:
+    raise RuntimeError(
+        "Pandas is required for build_region_insights. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+np = require("numpy")
+if np is None:
+    raise RuntimeError(
+        "NumPy is required for build_region_insights. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
+
+yaml = require("pyyaml", "yaml")
+if yaml is None:
+    raise RuntimeError(
+        "PyYAML is required for build_region_insights. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
 
 from _shared import (
     ensure_region_workspace,

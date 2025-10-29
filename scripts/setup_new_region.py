@@ -18,7 +18,6 @@ You can type “exit” at any prompt to cancel safely.
 
 import sys
 import subprocess
-import importlib
 import re
 import os
 from pathlib import Path
@@ -29,45 +28,27 @@ from pathlib import Path
 sys.path.append(os.path.dirname(__file__))
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# ------------------------------------------------------------
-# Dependency setup
-# ------------------------------------------------------------
-REQUIRED_PACKAGES = [
-    "pyyaml",
-    "pandas",
-    "numpy",
-    "requests",
-    "folium",
-    "matplotlib",
-    "scikit-learn",
-    "joblib",
-]
-
-def ensure_packages():
-    """Ensure all required packages are installed in the active environment."""
-    missing = []
-    for pkg in REQUIRED_PACKAGES:
-        try:
-            importlib.import_module(pkg if pkg != "pyyaml" else "yaml")
-        except ImportError:
-            missing.append(pkg)
-
-    if missing:
-        print(f"\n📦 Installing required packages: {', '.join(missing)}\n")
-        subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"], check=False)
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-input", *missing])
-        print("✅ Dependencies installed successfully.\n")
-    else:
-        print("✅ Environment ready — all dependencies found.\n")
-
-ensure_packages()
-
-# Fallback import guard for PyYAML
 try:
-    import yaml
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "pyyaml"])
-    import yaml
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback when executed directly
+    from run_pipeline import require  # type: ignore
+
+
+def _require_or_fail(pkg: str, import_name: str | None = None):
+    module = require(pkg, import_name)
+    if module is None:
+        raise RuntimeError(
+            f"Missing required dependency '{pkg}'. "
+            "Disable OFFLINE_MODE or install the package manually."
+        )
+    return module
+
+
+yaml = _require_or_fail("pyyaml", "yaml")
+_require_or_fail("pandas")
+_require_or_fail("numpy")
+_require_or_fail("requests")
+_require_or_fail("folium")
 
 # ------------------------------------------------------------
 # Imports after dependency check
@@ -325,6 +306,8 @@ def main():
             else:
                 print("❌ Skipped after second failure.\n")
 
+    _require_or_fail("matplotlib")
+
     # Step 5: Compute rolling anomalies
     print("Step 5: Computing rolling anomalies...")
     for attempt in range(2):
@@ -333,10 +316,6 @@ def main():
             print("✅ Rolling anomalies computed.\n")
             break
         except Exception as e:
-            if "No module named 'matplotlib'" in str(e):
-                print("🧩 Installing matplotlib (auto-fix)...")
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "matplotlib"])
-                continue
             print(f"⚠️  Anomaly computation failed: {e}")
             if attempt == 0:
                 print("🔁 Retrying once...")

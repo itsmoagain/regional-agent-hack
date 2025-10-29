@@ -10,8 +10,9 @@ Outputs (written to ``data/<region>/current``):
 """
 
 import argparse
-import json
 import subprocess
+from pathlib import Path
+import json
 import sys
 from pathlib import Path
 
@@ -22,22 +23,17 @@ from _shared import (
     load_region_profile,
 )
 
-# ------------------------------------------------------------
-# Ensure local dependencies before proceeding
-# ------------------------------------------------------------
-required = ["pandas", "pyyaml", "requests"]
-missing = []
-for pkg in required:
-    try:
-        __import__(pkg)
-    except ImportError:
-        missing.append(pkg)
+try:
+    from scripts.run_pipeline import require
+except ModuleNotFoundError:  # pragma: no cover - fallback when run directly
+    from run_pipeline import require  # type: ignore
 
-if missing:
-    print(f"📦 Installing missing dependencies for cache builder: {', '.join(missing)}")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", *missing])
-else:
-    print("✅ Dependencies ready inside virtual environment.")
+pd = require("pandas")
+if pd is None:
+    raise RuntimeError(
+        "Pandas is required for build_region_cache. "
+        "Re-run without OFFLINE_MODE to install missing dependencies."
+    )
 
 # ------------------------------------------------------------
 # Helper: load CSVs
