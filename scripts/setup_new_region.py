@@ -375,6 +375,18 @@ def run_region_setup(region_name=None):
 
     if os.environ.get("DEMO_MODE") == "1":
         create_demo_caches(f"data/{region_name}")
+      
+    # Step 6
+    print("Step 6: Distilling monthly insights...")
+    try:
+        subprocess.run(
+            [sys.executable, "engine/distill_insights.py", "--region", region_name],
+            check=True
+        )
+        print("✅ Monthly insights distilled.\n")
+    except Exception as e:
+        print(f"⚠️ Monthly distillation failed: {e}\n")
+
 
     print(f"\n🎉 Region '{region_name}' setup complete!")
     print("Includes:")
