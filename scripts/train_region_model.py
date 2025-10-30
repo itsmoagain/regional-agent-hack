@@ -2,6 +2,9 @@
 """Train a region-specific Random Forest model using cached features."""
 from __future__ import annotations
 
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 import argparse
 
 from rf_training_lib import train_from_cache
