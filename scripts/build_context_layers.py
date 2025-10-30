@@ -330,6 +330,18 @@ def build_context_layers(region_name: str):
         run([sys.executable, str(cache_builder), "--region", region_name], check=False)
 
     print(f"🎉 Context layers built successfully for {region_name}")
+    print("\n──────────────────────────────────────────────")
+    print("📍 NEXT STEP")
+    print("Your region’s context layers and cache are ready.")
+    print("To generate climate insights and train models, run:")
+    print(f"\n   python scripts/run_pipeline.py --region {region_name} --tier 1")
+    print("\nThis will:")
+    print("  • Distill monthly anomalies (SPI, NDVI, SMAP, etc.)")
+    print("  • Train or reload your Random Forest model")
+    print("  • Produce plain-language insight_feed.csv and alerts.txt")
+    print("\n✅ Once complete, you’ll find outputs in:")
+    print(f"   data/{region_name}/outputs/\n")
+    print("──────────────────────────────────────────────\n")
 
 
 # -------------------------------------------------------
