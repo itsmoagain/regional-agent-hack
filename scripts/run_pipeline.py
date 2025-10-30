@@ -648,7 +648,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     for step in steps:
         run_step(step)
 
-    print("\n🎉 Pipeline complete.")
+print("\n🎉 Pipeline completed successfully for", region)
+print("📊 Outputs saved to:", f"outputs/{region}/")
+print("🧠 Model artifacts saved to:", f"models/{region}_rf.pkl")
+
+print("""
+💡 Next Steps:
+- Add or update local practice logs in `data/<region>/practice_logs/`
+  to help the model learn from real field data.
+- Re-run `train_region_model.py` to retrain on updated logs.
+- Then re-run `run_pipeline.py` to see improved, context-aware insights.
+""")
+
     return 0
 
 
