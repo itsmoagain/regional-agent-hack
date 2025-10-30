@@ -1,0 +1,11 @@
+{
+  "region": "hungary_transdanubia",
+  "timestamp": "2025-10-30T20:17:07.575681Z",
+  "metrics": {
+    "r2": 0.0,
+    "mae": 0.0,
+    "rmse": 0.0,
+    "n": 6
+  },
+  "notes": "Fallback heuristic model used due to missing ML dependencies."
+}

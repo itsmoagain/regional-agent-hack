@@ -1,0 +1,7 @@
+month,crop_type,region_name,spi,ndvi_anomaly,soil_surface_moisture,temp_mean,rule_hits,model_signal,insight_text
+2023-01,coffee,Hungary Transdanubia,4.026,0.006,0.224,24.015,,0.494,"Hungary Transdanubia (coffee) — 2023-01: precipitation 4.03 mm, NDVI anomaly 0.006, soil moisture 0.22, temperature 24.0 °C."
+2023-02,coffee,Hungary Transdanubia,4.192,-0.016,0.233,22.57,,0.516,"Hungary Transdanubia (coffee) — 2023-02: precipitation 4.19 mm, NDVI anomaly -0.016, soil moisture 0.23, temperature 22.6 °C."
+2023-03,coffee,Hungary Transdanubia,3.773,0.005,0.232,24.548,,0.495,"Hungary Transdanubia (coffee) — 2023-03: precipitation 3.77 mm, NDVI anomaly 0.005, soil moisture 0.23, temperature 24.5 °C."
+2023-04,coffee,Hungary Transdanubia,4.377,0.003,0.219,24.198,,0.497,"Hungary Transdanubia (coffee) — 2023-04: precipitation 4.38 mm, NDVI anomaly 0.003, soil moisture 0.22, temperature 24.2 °C."
+2023-05,coffee,Hungary Transdanubia,3.821,0.006,0.224,25.125,,0.494,"Hungary Transdanubia (coffee) — 2023-05: precipitation 3.82 mm, NDVI anomaly 0.006, soil moisture 0.22, temperature 25.1 °C."
+2023-06,coffee,Hungary Transdanubia,4.584,-0.006,0.219,23.589,,0.506,"Hungary Transdanubia (coffee) — 2023-06: precipitation 4.58 mm, NDVI anomaly -0.006, soil moisture 0.22, temperature 23.6 °C."
