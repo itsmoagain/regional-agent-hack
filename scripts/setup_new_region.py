@@ -16,7 +16,6 @@ Prepares a new region for analysis by:
 You can type “exit” at any prompt to cancel safely.
 """
 
-import importlib
 import os
 import re
 import subprocess
@@ -29,26 +28,57 @@ from pathlib import Path
 
 
 def ensure_rf_training_lib():
-    """Auto-installs and verifies rf_training_lib."""
+    """Ensure rf_training_lib is available; continue in demo mode if not."""
+    import importlib, subprocess, sys, os
+    from pathlib import Path
 
+    lib_path = Path(__file__).resolve().parents[1] / "rf_training_lib"
+    sys.path.append(str(lib_path))
+
+    # Detect Kaggle or offline environment
+    if os.environ.get("KAGGLE_KERNEL_RUN_TYPE") or os.environ.get("OFFLINE_MODE") == "1":
+        print("⚙️ Offline/Kaggle sandbox detected — skipping rf_training_lib installation.")
+        try:
+            importlib.import_module("rf_training_lib")
+            print("✅ rf_training_lib imported directly from path.")
+            return
+        except Exception as e:
+            print(f"⚠️ Could not import rf_training_lib: {e}")
+            print("➡️ Continuing in limited DEMO mode (training disabled).")
+            os.environ["DEMO_MODE"] = "1"
+            return
+
+    # Online installation attempt
     try:
         importlib.import_module("rf_training_lib")
-        print("✅ rf_training_lib found and loaded.")
-    except ImportError:
+        print("✅ rf_training_lib already available.")
+    except ModuleNotFoundError:
         print("📦 Installing rf_training_lib (editable mode)...")
-        lib_path = Path(__file__).resolve().parents[1] / "rf_training_lib"
-        if not lib_path.exists():
-            print(f"⚠️ rf_training_lib not found at {lib_path}.")
-            return
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "-e", str(lib_path)]
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "-e", str(lib_path)]
+            )
+            importlib.import_module("rf_training_lib")
+            print("✅ rf_training_lib installed successfully.")
+        except Exception as e:
+            print(f"⚠️ Installation failed: {e}")
+            print("➡️ Falling back to path import and continuing setup.")
+            try:
+                importlib.import_module("rf_training_lib")
+                print("✅ rf_training_lib imported manually.")
+            except Exception as e2:
+                print(f"❌ Could not import rf_training_lib: {e2}")
+                print("⚙️ Proceeding in DEMO mode — model training disabled.")
+                os.environ["DEMO_MODE"] = "1"
+
+
+def print_environment_banner():
+    if os.environ.get("KAGGLE_KERNEL_RUN_TYPE") or os.environ.get("OFFLINE_MODE") == "1":
+        print(
+            "⚙️ Running in offline/sandbox environment — fetchers disabled, demo caches will be used."
         )
-        importlib.import_module("rf_training_lib")
-        print("✅ rf_training_lib successfully installed and verified.")
-
-
-# Run check during setup
-ensure_rf_training_lib()
+    else:
+        print("🌐 Running in online setup mode — full data initialization enabled.")
 
 # ------------------------------------------------------------
 # Ensure relative imports work
@@ -258,10 +288,35 @@ def confirm_inputs(region_name, bbox, crops, country):
         sys.exit(0)
 
 
+def create_demo_caches(region_dir):
+    """Generate placeholder data files for offline demo use."""
+    import pandas as pd
+    from pathlib import Path
+
+    demo_text = "⚠️ DEMO DATA — generated offline for illustration only"
+
+    placeholders = {
+        "daily_anomalies.csv": pd.DataFrame({"demo_note": [demo_text]}),
+        "daily_merged.csv": pd.DataFrame({"demo_note": [demo_text]}),
+        "monthly_merged.csv": pd.DataFrame({"demo_note": [demo_text]}),
+        "chirps_gee.csv": pd.DataFrame({"demo_note": [demo_text]}),
+        "soil_gee.csv": pd.DataFrame({"demo_note": [demo_text]}),
+        "openmeteo.csv": pd.DataFrame({"demo_note": [demo_text]}),
+        "ndvi_gee.csv": pd.DataFrame({"demo_note": [demo_text]}),
+    }
+
+    current_dir = Path(region_dir) / "current"
+    current_dir.mkdir(parents=True, exist_ok=True)
+    for name, df in placeholders.items():
+        df.to_csv(current_dir / name, index=False)
+    print(f"🧪 Created demo placeholder cache files in {current_dir}")
+
+
 # ------------------------------------------------------------
 # Setup sequence (now powered by Open-Meteo phenology)
 # ------------------------------------------------------------
-def main():
+def run_region_setup():
+    print_environment_banner()
     print("\n🌱 === Regional Setup Wizard ===")
     region_name = input("Enter region name (e.g., transdanubia_farmland): ").strip()
     prompt_exit_check(region_name)
@@ -350,6 +405,9 @@ def main():
             else:
                 print("❌ Skipped after second failure.\n")
 
+    if os.environ.get("DEMO_MODE") == "1":
+        create_demo_caches(f"data/{region_name}")
+
     print(f"\n🎉 Region '{region_name}' setup complete!")
     print("Includes:")
     print("  - Config + metadata YAML")
@@ -362,4 +420,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    ensure_rf_training_lib()
+    run_region_setup()
