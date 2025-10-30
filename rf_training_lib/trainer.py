@@ -1,4 +1,23 @@
-"""Training orchestration for Random Forest models."""
+#!/usr/bin/env python3
+"""
+🌲 Random Forest Training Orchestration
+--------------------------------------
+
+This module trains, evaluates, and exports Random Forest models for region-level
+climate insight prediction using cached feature datasets.
+
+It automatically handles:
+  • Feature/target loading from region caches
+  • Train/test split and evaluation
+  • Model and artifact saving
+
+💡 Note:
+For offline or demo environments (e.g., Kaggle or hackathon runs), the
+`preprocessing.py` helper includes a fallback that loads `insights_daily.csv`
+when `insights_monthly.csv` is missing. This ensures the pipeline remains
+runnable even before monthly aggregation is generated.
+"""
+
 from __future__ import annotations
 
 import json
@@ -164,4 +183,6 @@ class _FallbackModel:
         combined = (avg * weights).mean(axis=1)
         return np.clip(combined, 0.0, 1.0)
 
+
 __all__ = ["TrainingArtifacts", "load_or_train_model", "train_from_cache"]
+
