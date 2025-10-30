@@ -174,14 +174,17 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
 # 🪱 SoilGrids v2.0 & Elevation Helpers
 # -------------------------------------------------------
 def fetch_soilgrids(lat: float, lon: float, out_path: Path) -> pd.DataFrame:
-    url = "https://rest.isric.org/soilgrids/v2.0/properties/query"
-    params = {
-    "lon": lon,
-    "lat": lat,
-    "property": "clay,silt,sand,soc,phh2o,bdod",
-    "depth": "0-5cm,5-15cm,15-30cm",
-}
+    """
+    Fetch soil property means from the SoilGrids v2.0 API.
+    Automatically retries smaller property sets if the server returns 500,
+    and falls back to FAO defaults if no valid values are found.
+    """
+    import time
 
+    url = "https://rest.isric.org/soilgrids/v2.0/properties/query"
+    headers = {"User-Agent": "RegionalAgent/1.0"}
+    properties = ["clay", "silt", "sand", "soc", "phh2o", "bdod"]
+    depths = "0-5cm,5-15cm,15-30cm"
 
     meta = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -190,10 +193,49 @@ def fetch_soilgrids(lat: float, lon: float, out_path: Path) -> pd.DataFrame:
         "source": None,
     }
 
-    try:
-        r = requests.get(url, params=params, timeout=30)
+    def query_soilgrids(prop_list):
+        params = {
+            "lon": lon,
+            "lat": lat,
+            "property": ",".join(prop_list),
+            "depth": depths,
+        }
+        r = requests.get(url, params=params, headers=headers, timeout=30)
         r.raise_for_status()
-        data = r.json()
+        return r.json()
+
+    try:
+        try:
+            # First attempt with all properties together
+            r = requests.get(
+                url,
+                params={
+                    "lon": lon,
+                    "lat": lat,
+                    "property": ",".join(properties),
+                    "depth": depths,
+                },
+                headers=headers,
+                timeout=30,
+            )
+            r.raise_for_status()
+            data = r.json()
+        except Exception as e:
+            print(f"⚠️ SoilGrids bulk query failed ({e}); retrying smaller sets...")
+            data = {"properties": {"layers": []}}
+            for p in properties:
+                try:
+                    time.sleep(1)
+                    partial = query_soilgrids([p])
+                    layers = partial.get("properties", {}).get("layers", [])
+                    if isinstance(layers, dict):
+                        layers = [layers]
+                    data["properties"]["layers"].extend(layers)
+                    print(f"✅ Retrieved {p}")
+                except Exception as sub_e:
+                    print(f"⚠️ Skipped {p}: {sub_e}")
+                    continue
+
         props = data.get("properties", {}).get("layers", {})
         if isinstance(props, dict):
             layer_items = props.items()
@@ -242,34 +284,6 @@ def fetch_soilgrids(lat: float, lon: float, out_path: Path) -> pd.DataFrame:
     print(f"✅ Saved {out_path.name} ({len(df)} rows, {df.shape[1]} cols, source={meta['source']})")
     return df
 
-
-def fetch_elevation(lat: float, lon: float, out_dir: Path) -> pd.DataFrame:
-    url = "https://api.open-elevation.com/api/v1/lookup"
-    meta = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "lat": lat,
-        "lon": lon,
-        "source": None,
-    }
-
-    try:
-        r = requests.post(url, json={"locations": [{"latitude": lat, "longitude": lon}]}, timeout=30)
-        r.raise_for_status()
-        elev = r.json()["results"][0]["elevation"]
-        df = pd.DataFrame([{"elevation_m": elev, "data_source": "Open_Elevation_API"}])
-        meta["source"] = "Open_Elevation_API"
-    except Exception as e:
-        print(f"⚠️ Elevation fallback: {e}")
-        df = pd.DataFrame([{"elevation_m": np.nan, "data_source": "Fallback_None"}])
-        meta["source"] = "Fallback_None"
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_csv = out_dir / "topography.csv"
-    df.to_csv(out_csv, index=False)
-    with open(out_dir / "topography_metadata.json", "w") as f:
-        json.dump(meta, f, indent=2)
-    print(f"✅ Saved {out_csv.name} ({len(df)} rows, source={meta['source']})")
-    return df
 
 
 # -------------------------------------------------------
