@@ -1,159 +1,36 @@
 #!/usr/bin/env python3
-"""
-Train Random Forest models for a given region, tier, and data frequency.
-
-Usage:
-  python scripts/train_region_model.py --region austin_farmland --tier 2 --freq daily --target ndvi_zscore
-
-Inputs:
-  - data/<region>/current/insights_<freq>.csv   (daily or monthly)
-  - Optional: phenology.csv, practice_logs.csv, rags.csv, context_layers/
-Outputs (created under models/<region>/):
-  - tier{tier}_{freq}_model.pkl
-  - tier{tier}_{freq}_feature_importances.csv
-  - tier{tier}_{freq}_metrics.json
-"""
+"""Train a region-specific Random Forest model using cached features."""
+from __future__ import annotations
 
 import argparse
-from pathlib import Path
-import pandas as pd
-import numpy as np
-import joblib
-import json
-import shutil
-from datetime import datetime
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
-from agent.features.builder import build_features
-from _shared import ensure_region_workspace, get_region_current_dir
-
-# ------------------------------------------------------------
-# Helper: compute evaluation metrics
-# ------------------------------------------------------------
-def compute_metrics(y_true, y_pred):
-    """NaN-safe metrics computation."""
-    y_true, y_pred = np.array(y_true, dtype=float), np.array(y_pred, dtype=float)
-    mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
-    if mask.sum() == 0:
-        return {"r2": np.nan, "mae": np.nan, "rmse": np.nan, "n": 0}
-
-    y_true, y_pred = y_true[mask], y_pred[mask]
-    return {
-        "r2": round(r2_score(y_true, y_pred), 3),
-        "mae": round(mean_absolute_error(y_true, y_pred), 3),
-        "rmse": round(np.sqrt(mean_squared_error(y_true, y_pred)), 3),
-        "n": int(mask.sum()),
-    }
+from rf_training_lib import train_from_cache
 
 
-# ------------------------------------------------------------
-# Main training function
-# ------------------------------------------------------------
-def train_region_model(region: str, tier: int = 1, target: str = "ndvi_zscore", freq: str = "monthly"):
-    region_path = get_region_current_dir(region)
-    model_dir = Path("models") / region
-    model_dir.mkdir(parents=True, exist_ok=True)
-    workspace = ensure_region_workspace(region)
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--region", required=True, help="Region slug (e.g. jamaica_coffee)")
+    parser.add_argument("--tier", type=int, default=1, help="Feature tier depth to use")
+    parser.add_argument("--target", default="ndvi_zscore", help="Target column to predict")
+    parser.add_argument("--freq", default="monthly", choices=["daily", "monthly"], help="Insight dataset frequency")
+    parser.add_argument("--test-ratio", type=float, default=0.2, help="Holdout ratio for evaluation")
+    parser.add_argument("--force-refresh", action="store_true", help="Regenerate feature cache before training")
+    args = parser.parse_args()
 
-    # Determine which insights file to use
-    requested_freq = freq
-    insight_file = region_path / f"insights_{freq}.csv"
-    if not insight_file.exists():
-        legacy = region_path / f"insight_{freq}.csv"
-        if legacy.exists():
-            insight_file = legacy
-        else:
-            fallback = region_path / "insights_monthly.csv"
-            if not fallback.exists():
-                legacy_monthly = region_path / "insight_monthly.csv"
-                if legacy_monthly.exists():
-                    fallback = legacy_monthly
-            if fallback.exists():
-                insight_file = fallback
-                freq = "monthly"
-                print(
-                    f"⚠️  No insights_{requested_freq}.csv found; using monthly fallback."
-                )
-            else:
-                raise FileNotFoundError(
-                    f"No insight file found for {region}. Expected {region_path / f'insights_{freq}.csv'}"
-                )
-
-    print(f"🏗  Building Tier {tier} features for {region} ({freq} data)...")
-    X, y = build_features(region, tier, insight_file=insight_file, target=target)
-    if y is None or X.empty:
-        raise ValueError("No valid target or features found — cannot train model.")
-
-    print(f"📦 Feature matrix: {X.shape[0]} rows × {X.shape[1]} columns")
-
-    # Temporal 80/20 split
-    split_idx = int(0.8 * len(X))
-    X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
-    y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
-
-    print(f"🧩 Split: {len(X_train)} train / {len(X_test)} test")
-
-    # Train Random Forest
-    model = RandomForestRegressor(
-        n_estimators=300,
-        max_depth=None,
-        n_jobs=-1,
-        random_state=42
+    artifacts = train_from_cache(
+        args.region,
+        tier=args.tier,
+        target=args.target,
+        freq=args.freq,
+        test_ratio=args.test_ratio,
+        force_refresh=args.force_refresh,
     )
-    model.fit(X_train, y_train)
 
-    # Evaluate
-    y_pred = model.predict(X_test)
-    metrics = compute_metrics(y_test, y_pred)
-
-    # Save artifacts
-    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-    prefix = f"tier{tier}_{freq}"
-    model_file = model_dir / f"{prefix}_model.pkl"
-    feat_file = model_dir / f"{prefix}_feature_importances.csv"
-    metrics_file = model_dir / f"{prefix}_metrics.json"
-
-    joblib.dump(model, model_file)
-
-    importances = pd.DataFrame({
-        "feature": X.columns,
-        "importance": model.feature_importances_
-    }).sort_values("importance", ascending=False)
-    importances.to_csv(feat_file, index=False)
-
-    with open(metrics_file, "w") as f:
-        json.dump({
-            "region": region,
-            "tier": tier,
-            "freq": freq,
-            "timestamp": timestamp,
-            "records": len(X),
-            "metrics": metrics
-        }, f, indent=2)
-
-    print(f"✅ Model trained and saved for {region} (Tier {tier}, {freq})")
-    print(f"📈 Metrics: R²={metrics['r2']}  MAE={metrics['mae']}  RMSE={metrics['rmse']}  (n={metrics['n']})")
-    print(f"🧠 Model → {model_file}")
-    print(f"📊 Feature importances → {feat_file}")
-    print(f"📘 Metrics → {metrics_file}")
-
-    workspace_models = workspace / "models"
-    workspace_models.mkdir(parents=True, exist_ok=True)
-    for artifact in (model_file, feat_file, metrics_file):
-        shutil.copy2(artifact, workspace_models / artifact.name)
-    print(f"🗂️  Synced model artifacts to workspace → {workspace_models.relative_to(workspace)}")
+    print(f"✅ Model trained for {args.region} → {artifacts.model_path}")
+    print(f"📊 Feature importances → {artifacts.feature_importances}")
+    print(f"📈 Metrics → {artifacts.metrics_path}")
+    print(f"ℹ️  Metrics summary: {artifacts.metrics}")
 
 
-# ------------------------------------------------------------
-# CLI
-# ------------------------------------------------------------
-if __name__ == "__main__":
-    p = argparse.ArgumentParser(description="Train a region-specific Random Forest model.")
-    p.add_argument("--region", required=True, help="Region name, e.g. hungary_farmland or austin_farmland")
-    p.add_argument("--tier", type=int, choices=[1, 2, 3], default=1)
-    p.add_argument("--target", default="ndvi_zscore", help="Target variable to predict")
-    p.add_argument("--freq", choices=["daily", "monthly"], default="monthly", help="Data frequency to use")
-    args = p.parse_args()
-
-    train_region_model(args.region, args.tier, args.target, args.freq)
+if __name__ == "__main__":  # pragma: no cover - CLI
+    main()

@@ -182,4 +182,3 @@ __all__ = [
     "evaluate_rules_row",
     "parse_rule_hit",
 ]
-diff --git a/docs/greenai_metrics.md b/docs/greenai_metrics.md

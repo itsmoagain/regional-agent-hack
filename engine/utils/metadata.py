@@ -125,4 +125,3 @@ __all__ = [
     "load_phenology_hints",
     "update_metadata",
 ]
-diff --git a/engine/utils/phenology.py b/engine/utils/phenology.py

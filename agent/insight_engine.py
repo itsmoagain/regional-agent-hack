@@ -278,4 +278,3 @@ def _load_templates() -> Mapping[str, str]:
 
 
 __all__ = ["build_insights"]
-diff --git a/agent/rules/engine.py b/agent/rules/engine.py
