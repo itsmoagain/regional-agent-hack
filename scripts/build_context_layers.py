@@ -332,6 +332,46 @@ def build_context_layers(region_name: str):
 
     print(f"🎉 Context layers built successfully for {region_name}")
 
+def fetch_elevation(lat: float, lon: float, out_dir: Path) -> pd.DataFrame:
+    """
+    Fetch elevation data using the Open-Elevation API.
+    Falls back gracefully to NaN if the service is unavailable.
+    """
+
+    url = "https://api.open-elevation.com/api/v1/lookup"
+    meta = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "lat": lat,
+        "lon": lon,
+        "source": None,
+    }
+
+    try:
+        r = requests.post(
+            url,
+            json={"locations": [{"latitude": lat, "longitude": lon}]},
+            timeout=30,
+        )
+        r.raise_for_status()
+        elev = r.json()["results"][0]["elevation"]
+        df = pd.DataFrame([{"elevation_m": elev, "data_source": "Open_Elevation_API"}])
+        meta["source"] = "Open_Elevation_API"
+    except Exception as e:
+        print(f"⚠️ Elevation fallback: {e}")
+        df = pd.DataFrame([{"elevation_m": np.nan, "data_source": "Fallback_None"}])
+        meta["source"] = "Fallback_None"
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_csv = out_dir / "topography.csv"
+    df.to_csv(out_csv, index=False)
+
+    with open(out_dir / "topography_metadata.json", "w") as f:
+        json.dump(meta, f, indent=2)
+
+    print(f"✅ Saved {out_csv.name} ({len(df)} rows, source={meta['source']})")
+    return df
+
+
 
 # -------------------------------------------------------
 # Entrypoint
