@@ -288,8 +288,6 @@ def build_context_layers(region_name: str):
 
     print(f"🌍 Building context layers for {region_name}")
     print(f"📍 Approx centroid: lat={lat:.3f}, lon={lon:.3f}")
-    print(f"🌾 Crops: {', '.join(crops)}")
-
     print("🪱 Fetching SoilGrids data...")
     fetch_soilgrids(lat, lon, ctx_dir / "soil.csv")
 
