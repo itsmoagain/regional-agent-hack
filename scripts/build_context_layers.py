@@ -24,39 +24,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from subprocess import run
 import sys
+import time
 
-try:  # Local import to avoid circular dependency when used as a module
+try:
     from scripts.run_pipeline import require
-except ModuleNotFoundError:  # pragma: no cover - fallback for direct execution
+except ModuleNotFoundError:
     from run_pipeline import require  # type: ignore
 
 np = require("numpy")
-if np is None:
-    raise RuntimeError(
-        "NumPy is required for build_context_layers. "
-        "Re-run without OFFLINE_MODE to install missing dependencies."
-    )
-
 pd = require("pandas")
-if pd is None:
-    raise RuntimeError(
-        "Pandas is required for build_context_layers. "
-        "Re-run without OFFLINE_MODE to install missing dependencies."
-    )
-
 requests = require("requests")
-if requests is None:
-    raise RuntimeError(
-        "Requests is required for build_context_layers. "
-        "Re-run without OFFLINE_MODE to install missing dependencies."
-    )
-
 yaml = require("pyyaml", "yaml")
-if yaml is None:
-    raise RuntimeError(
-        "PyYAML is required for build_context_layers. "
-        "Re-run without OFFLINE_MODE to install missing dependencies."
-    )
 
 from _shared import load_region_profile, resolve_region_config_path
 
@@ -65,12 +43,7 @@ from _shared import load_region_profile, resolve_region_config_path
 # 🌾 Phenology Helper (Open-Meteo → GDD)
 # -------------------------------------------------------
 def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) -> pd.DataFrame:
-    """
-    Derive simple phenology proxy from Open-Meteo ERA5 reanalysis.
-    Uses temperature-based GDD accumulation to estimate planting,
-    flowering, and harvest DOY thresholds.
-    """
-
+    """Derive simple phenology proxy from Open-Meteo ERA5 reanalysis using GDD."""
     url = "https://archive-api.open-meteo.com/v1/era5"
     params = {
         "latitude": lat,
@@ -89,21 +62,17 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
         "source": None,
     }
 
-    # Crop-specific base temps (°C) for GDD calculation
     base_temp_map = {
         "maize": 10, "corn": 10,
         "soybean": 8, "wheat": 0,
         "rice": 10, "coffee": 12,
         "cotton": 15, "sorghum": 8,
         "vegetables": 8, "tomato": 10,
-        "cowpea": 10, "generic_crop": 10
+        "cowpea": 10, "generic_crop": 10,
     }
 
-    # ✅ FIX: Safely handle dict crop inputs (prevents AttributeError)
-    if isinstance(crop, dict):
-        crop_name = crop.get("name", "unknown")
-    else:
-        crop_name = str(crop)
+    # Safely handle dict crops
+    crop_name = crop.get("name", "unknown") if isinstance(crop, dict) else str(crop)
     base_temp = base_temp_map.get(crop_name.lower(), 10)
 
     try:
@@ -119,7 +88,6 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
         temps["gdd"] = (temps["tavg"] - base_temp).clip(lower=0)
         temps["cumsum_gdd"] = temps["gdd"].cumsum()
 
-        # Approx phenology thresholds (% of cumulative GDD)
         total_gdd = temps["cumsum_gdd"].iloc[-1]
         thresholds = {
             "planting": 0.05 * total_gdd,
@@ -135,7 +103,7 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
             )
 
         df = pd.DataFrame([{
-            "crop": crop,
+            "crop": crop_name,
             "planting_date": phenology.get("planting_date"),
             "flowering_date": phenology.get("flowering_date"),
             "harvest_date": phenology.get("harvest_date"),
@@ -146,9 +114,9 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
         meta["source"] = "OpenMeteo_GDD"
 
     except Exception as e:
-        print(f"⚠️ Phenology fallback for {crop}: {e}")
+        print(f"⚠️ Phenology fallback for {crop_name}: {e}")
         df = pd.DataFrame([{
-            "crop": crop,
+            "crop": crop_name,
             "planting_date": np.nan,
             "flowering_date": np.nan,
             "harvest_date": np.nan,
@@ -159,13 +127,14 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
         meta["source"] = "Fallback_None"
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = crop.get("name", "unknown") if isinstance(crop, dict) else str(crop)
-    safe_name = "".join(c for c in safe_name if c.isalnum() or c in ("_", "-")).lower()
+
+    # ✅ Safe filenames
+    safe_name = "".join(c for c in crop_name if c.isalnum() or c in ("_", "-")).lower()
     out_file = out_dir / f"phenology_{safe_name}.csv"
     df.to_csv(out_file, index=False)
     print(f"✅ Saved {out_file.name} ({len(df)} rows, source={meta['source']})")
 
-    meta_path = out_dir / f"phenology_{crop}_metadata.json"
+    meta_path = out_dir / f"phenology_{safe_name}_metadata.json"
     with open(meta_path, "w") as f:
         json.dump(meta, f, indent=2)
 
@@ -173,16 +142,10 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
 
 
 # -------------------------------------------------------
-# 🪱 SoilGrids v2.0 & Elevation Helpers
+# 🪱 SoilGrids v2.0
 # -------------------------------------------------------
 def fetch_soilgrids(lat: float, lon: float, out_path: Path) -> pd.DataFrame:
-    """
-    Fetch soil property means from the SoilGrids v2.0 API.
-    Automatically retries smaller property sets if the server returns 500,
-    and falls back to FAO defaults if no valid values are found.
-    """
-    import time
-
+    """Fetch soil property means from SoilGrids API, retry smaller queries on 500."""
     url = "https://rest.isric.org/soilgrids/v2.0/properties/query"
     headers = {"User-Agent": "RegionalAgent/1.0"}
     properties = ["clay", "silt", "sand", "soc", "phh2o", "bdod"]
@@ -208,7 +171,6 @@ def fetch_soilgrids(lat: float, lon: float, out_path: Path) -> pd.DataFrame:
 
     try:
         try:
-            # First attempt with all properties together
             r = requests.get(
                 url,
                 params={
@@ -239,12 +201,11 @@ def fetch_soilgrids(lat: float, lon: float, out_path: Path) -> pd.DataFrame:
                     continue
 
         props = data.get("properties", {}).get("layers", {})
-        if isinstance(props, dict):
-            layer_items = props.items()
-        elif isinstance(props, list):
-            layer_items = [(layer.get("name"), layer) for layer in props if isinstance(layer, dict)]
-        else:
-            raise ValueError("Unrecognized SoilGrids format")
+        layer_items = (
+            props.items()
+            if isinstance(props, dict)
+            else [(layer.get("name"), layer) for layer in props if isinstance(layer, dict)]
+        )
 
         records = []
         for name, layer in layer_items:
@@ -266,15 +227,15 @@ def fetch_soilgrids(lat: float, lon: float, out_path: Path) -> pd.DataFrame:
             "clay": "clay_pct", "silt": "silt_pct", "sand": "sand_pct",
             "soc": "soc_gkg", "phh2o": "ph", "bdod": "bulk_density",
         }, inplace=True)
-
         df["data_source"] = "SoilGrids_API"
         meta["source"] = "SoilGrids_API"
 
     except Exception as e:
         print(f"⚠️ SoilGrids error: {e}")
         df = pd.DataFrame([{
-            "clay_pct": 25, "silt_pct": 35, "sand_pct": 40, "soc_gkg": 15,
-            "ph": 6.5, "bulk_density": 1.3, "data_source": "Fallback_FAO_Defaults",
+            "clay_pct": 25, "silt_pct": 35, "sand_pct": 40,
+            "soc_gkg": 15, "ph": 6.5, "bulk_density": 1.3,
+            "data_source": "Fallback_FAO_Defaults",
         }])
         meta["source"] = "Fallback_FAO_Defaults"
 
@@ -286,6 +247,41 @@ def fetch_soilgrids(lat: float, lon: float, out_path: Path) -> pd.DataFrame:
     print(f"✅ Saved {out_path.name} ({len(df)} rows, {df.shape[1]} cols, source={meta['source']})")
     return df
 
+
+# -------------------------------------------------------
+# 🏔️ Elevation Helper
+# -------------------------------------------------------
+def fetch_elevation(lat: float, lon: float, out_dir: Path) -> pd.DataFrame:
+    """Fetch elevation from Open-Elevation API, fallback to NaN if unavailable."""
+    url = "https://api.open-elevation.com/api/v1/lookup"
+    meta = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "lat": lat,
+        "lon": lon,
+        "source": None,
+    }
+
+    try:
+        r = requests.post(
+            url, json={"locations": [{"latitude": lat, "longitude": lon}]}, timeout=30
+        )
+        r.raise_for_status()
+        elev = r.json()["results"][0]["elevation"]
+        df = pd.DataFrame([{"elevation_m": elev, "data_source": "Open_Elevation_API"}])
+        meta["source"] = "Open_Elevation_API"
+    except Exception as e:
+        print(f"⚠️ Elevation fallback: {e}")
+        df = pd.DataFrame([{"elevation_m": np.nan, "data_source": "Fallback_None"}])
+        meta["source"] = "Fallback_None"
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_csv = out_dir / "topography.csv"
+    df.to_csv(out_csv, index=False)
+    with open(out_dir / "topography_metadata.json", "w") as f:
+        json.dump(meta, f, indent=2)
+
+    print(f"✅ Saved {out_csv.name} ({len(df)} rows, source={meta['source']})")
+    return df
 
 
 # -------------------------------------------------------
@@ -311,6 +307,7 @@ def build_context_layers(region_name: str):
 
     print(f"🌍 Building context layers for {region_name}")
     print(f"📍 Approx centroid: lat={lat:.3f}, lon={lon:.3f}")
+
     print("🪱 Fetching SoilGrids data...")
     fetch_soilgrids(lat, lon, ctx_dir / "soil.csv")
 
@@ -318,10 +315,10 @@ def build_context_layers(region_name: str):
     fetch_elevation(lat, lon, ctx_dir)
 
     for crop in crops:
-        print(f"🌾 Fetching phenology for {crop}...")
+        crop_label = crop.get("name", "unknown") if isinstance(crop, dict) else str(crop)
+        print(f"🌾 Fetching phenology for {crop_label}...")
         fetch_openmeteo_phenology(lat, lon, crop, ctx_dir)
 
-    # 🔁 Run dynamic fetchers
     fetch_all = root / "scripts" / "fetch_all.py"
     if fetch_all.exists():
         print("🔁 Running fetch_all.py for dynamic datasets...")
@@ -334,46 +331,6 @@ def build_context_layers(region_name: str):
 
     print(f"🎉 Context layers built successfully for {region_name}")
 
-def fetch_elevation(lat: float, lon: float, out_dir: Path) -> pd.DataFrame:
-    """
-    Fetch elevation data using the Open-Elevation API.
-    Falls back gracefully to NaN if the service is unavailable.
-    """
-
-    url = "https://api.open-elevation.com/api/v1/lookup"
-    meta = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "lat": lat,
-        "lon": lon,
-        "source": None,
-    }
-
-    try:
-        r = requests.post(
-            url,
-            json={"locations": [{"latitude": lat, "longitude": lon}]},
-            timeout=30,
-        )
-        r.raise_for_status()
-        elev = r.json()["results"][0]["elevation"]
-        df = pd.DataFrame([{"elevation_m": elev, "data_source": "Open_Elevation_API"}])
-        meta["source"] = "Open_Elevation_API"
-    except Exception as e:
-        print(f"⚠️ Elevation fallback: {e}")
-        df = pd.DataFrame([{"elevation_m": np.nan, "data_source": "Fallback_None"}])
-        meta["source"] = "Fallback_None"
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_csv = out_dir / "topography.csv"
-    df.to_csv(out_csv, index=False)
-
-    with open(out_dir / "topography_metadata.json", "w") as f:
-        json.dump(meta, f, indent=2)
-
-    print(f"✅ Saved {out_csv.name} ({len(df)} rows, source={meta['source']})")
-    return df
-
-
 
 # -------------------------------------------------------
 # Entrypoint
@@ -381,7 +338,7 @@ def fetch_elevation(lat: float, lon: float, out_dir: Path) -> pd.DataFrame:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build static context layers for a region.")
     parser.add_argument("--region", required=True, help="Region name (e.g. hungary_farmland)")
-    parser.add_argument("--crop", nargs="+", help="Optional crop list to override YAML (e.g. --crop maize wheat)")
+    parser.add_argument("--crop", nargs="+", help="Optional crop list to override YAML")
     args = parser.parse_args()
 
     if args.crop:
