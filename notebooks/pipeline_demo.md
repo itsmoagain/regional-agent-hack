@@ -14,7 +14,7 @@ from pathlib import Path
 
 REGION = 'hungary_transdanubia'  # or 'jamaica_coffee'
 DATA_DIR = Path('data') / REGION
-CONFIG_PATH = Path('config') / f'insight.{REGION}.yml'
+CONFIG_PATH = Path('regions/profiles') / f'insight.{REGION}.yml'
 assert CONFIG_PATH.exists(), f'Missing config for {REGION}'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_PATH
@@ -39,4 +39,4 @@ run(['python', 'scripts/train_region_model.py', '--region', REGION, '--tier', '2
 run(['python', 'engine/evaluate_greenai.py', '--region', REGION, '--label', 'baseline', '--command', f'python scripts/train_region_model.py --region {REGION} --tier 1 --freq monthly'])
 run(['python', 'engine/evaluate_greenai.py', '--region', REGION, '--label', 'optimised', '--command', f'python scripts/train_region_model.py --region {REGION} --tier 3 --freq monthly'])
 run(['python', 'scripts/flag_anomalies.py', '--region', REGION, '--config', str(CONFIG_PATH)])
-```diff --git a/requirements.txt b/requirements.txt
+```
