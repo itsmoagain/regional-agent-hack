@@ -678,8 +678,12 @@ print("""
   to let the model learn from your field updates and refine future insights.
 """)
 
-return 0
+    # ✅ Return success code at the end of main()
+    return 0
 
 
+# ---------------------------------------------------------------------------
+# CLI Entrypoint
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     raise SystemExit(main())
