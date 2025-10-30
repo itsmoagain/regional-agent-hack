@@ -159,7 +159,9 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
         meta["source"] = "Fallback_None"
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_file = out_dir / f"phenology_{crop}.csv"
+    safe_name = crop.get("name", "unknown") if isinstance(crop, dict) else str(crop)
+    safe_name = "".join(c for c in safe_name if c.isalnum() or c in ("_", "-")).lower()
+    out_file = out_dir / f"phenology_{safe_name}.csv"
     df.to_csv(out_file, index=False)
     print(f"✅ Saved {out_file.name} ({len(df)} rows, source={meta['source']})")
 
