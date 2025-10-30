@@ -176,11 +176,12 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
 def fetch_soilgrids(lat: float, lon: float, out_path: Path) -> pd.DataFrame:
     url = "https://rest.isric.org/soilgrids/v2.0/properties/query"
     params = {
-        "lon": lon,
-        "lat": lat,
-        "property": ["clay", "silt", "sand", "soc", "phh2o", "bdod"],
-        "depth": ["0-5cm", "5-15cm", "15-30cm"],
-    }
+    "lon": lon,
+    "lat": lat,
+    "property": "clay,silt,sand,soc,phh2o,bdod",
+    "depth": "0-5cm,5-15cm,15-30cm",
+}
+
 
     meta = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
