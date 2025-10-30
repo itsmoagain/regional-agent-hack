@@ -36,7 +36,10 @@ data/**/cache/
 data/**/tmp/
 data/**/ndvi_anomaly_preview.*
 !data/**/current/ndvi_anomaly_preview.*
-outputs/
+
+# outputs/
+!outputs/**
+
 
 # OS metadata
 .DS_Store
