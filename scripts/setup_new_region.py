@@ -177,14 +177,25 @@ def select_crop_category():
         print(f"{i}) {name}")
 
     crop_input = input("\nSelect crop(s) (comma/space separated, ENTER for all): ").strip()
-    if not crop_input:
+ if not crop_input:
+    selected = crops
+else:
+    entries = [x.strip().lower() for x in crop_input.replace(",", " ").split()]
+    selected = []
+    for entry in entries:
+        if entry.isdigit():
+            idx = int(entry)
+            if 1 <= idx <= len(crops):
+                selected.append(crops[idx - 1])
+                continue
+        for c in crops:
+            cname = c["name"].lower() if isinstance(c, dict) else c.lower()
+            if entry == cname:
+                selected.append(c)
+                break
+    if not selected:
+        print("⚠️  None matched, using all crops by default.")
         selected = crops
-    else:
-        entries = [x.strip().lower() for x in crop_input.replace(",", " ").split()]
-        selected = [c for c in crops if (c["name"].lower() if isinstance(c, dict) else c.lower()) in entries]
-        if not selected:
-            print("⚠️  None matched, using all crops.")
-            selected = crops
 
     enriched = []
     for c in selected:
