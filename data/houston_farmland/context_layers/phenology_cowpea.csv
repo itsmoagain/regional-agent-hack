@@ -1,0 +1,2 @@
+crop,planting_date,flowering_date,harvest_date,lat,lon,data_source
+Cowpea,2010-10-10,2018-09-26,2025-04-13,29.65,-95.55,OpenMeteo_GDD

@@ -29,7 +29,7 @@ SRC = ROOT / "src"
 if SRC.exists() and str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from regional_agent import ensure_region_workspace
+from src.regional_agent import ensure_region_workspace
 
 
 def _default_hardware_metadata() -> Dict[str, Any]:

@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import pandas as pd, numpy as np, yaml, json
 from datetime import timedelta
 from pathlib import Path

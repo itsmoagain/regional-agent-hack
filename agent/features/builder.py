@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover - package usage
 if scripts_shared is not None:
     get_region_current_dir = scripts_shared.get_region_current_dir
 else:
-    from regional_agent.config import get_region_current_dir  # type: ignore  # pragma: no cover
+    from src.regional_agent.config import get_region_current_dir  # type: ignore  # pragma: no cover
 
 
 # ------------------------------------------------------------

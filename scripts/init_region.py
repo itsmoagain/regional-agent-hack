@@ -1,7 +1,10 @@
+from __future__ import annotations
+
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 #!/usr/bin/env python3
 """Auto-initialize a region's folder structure and config YAML."""
 
-from __future__ import annotations
 
 import os
 import subprocess

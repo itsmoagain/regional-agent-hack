@@ -26,7 +26,7 @@ if scripts_shared is not None:
     ensure_region_workspace = scripts_shared.ensure_region_workspace
     get_region_current_dir = scripts_shared.get_region_current_dir
 else:
-    from regional_agent.config import ensure_region_workspace, get_region_current_dir  # type: ignore  # pragma: no cover
+    from src.regional_agent.config import ensure_region_workspace, get_region_current_dir  # type: ignore  # pragma: no cover
 
 
 CACHE_NAME = "feature_cache.joblib"

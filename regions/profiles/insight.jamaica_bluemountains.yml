@@ -1,0 +1,133 @@
+baseline:
+  end_year: 2022
+  start_year: 2010
+extends: insight.defaults.yml
+outputs:
+  daily: true
+  include_climatology: true
+  include_rolling: true
+  monthly: true
+region_meta:
+  bbox:
+  - -76.85
+  - 17.85
+  - -76.55
+  - 18.15
+  country: Jamaica,Central America
+  crops:
+  - name: Arabica Coffee
+    sci_name: Coffea arabica
+    fao_code: 801
+    cycle_days: 365
+    season_start: 1
+    season_end: 365
+    source: FAO Crop Calendar
+  notes: "placeholder \u2014 auto-filled by user or agent"
+rolling:
+  min_periods: 5
+  window_days: 30
+rules:
+- id: ja_irrigation_recovery
+  label: 'JAMAICA_BLUEMOUNTAINS: Possible irrigation recovery event'
+  note: "NDVI and soil moisture increase without rainfall \u2192 possible irrigation\
+    \ response."
+  when:
+    all:
+    - op: '>'
+      value: 0.1
+      var: "\u0394ndvi_10d"
+    - op: '>'
+      value: 0.02
+      var: "\u0394soil_surface_moisture_10d"
+    - op: <
+      value: 0
+      var: precip_mm_sum_anomaly_roll
+- id: ja_heat_stress
+  label: 'JAMAICA_BLUEMOUNTAINS: Vegetation heat stress'
+  note: Rapid NDVI decline with strong short-term heat anomaly.
+  when:
+    all:
+    - op: '>'
+      value: 2.0
+      var: t2m_mean_anomaly_roll
+    - op: <
+      value: -0.05
+      var: "\u0394ndvi_5d"
+- id: ja_drought_onset
+  label: 'JAMAICA_BLUEMOUNTAINS: Early drought signal'
+  note: Low precipitation, dry soils, and suppressed vegetation.
+  when:
+    all:
+    - op: <
+      value: -0.5
+      var: precip_mm_sum_anomaly_clim
+    - op: ==
+      value: 1
+      var: soil_deficit_index
+    - op: <
+      value: -1.0
+      var: ndvi_zscore
+- id: ja_moisture_rebound
+  label: 'JAMAICA_BLUEMOUNTAINS: Moisture rebound following rain'
+  note: Soil moisture recovery after short-term rainfall anomaly.
+  when:
+    all:
+    - op: '>'
+      value: 0.3
+      var: precip_mm_sum_anomaly_roll
+    - op: '>'
+      value: 0.02
+      var: "\u0394soil_surface_moisture_5d"
+- id: ja_persistent_stress
+  label: 'JAMAICA_BLUEMOUNTAINS: Persistent vegetation stress'
+  note: Combined long-term heat and dryness driving vegetation stress.
+  when:
+    all:
+    - op: <
+      value: -1.0
+      var: ndvi_zscore
+    - op: '>'
+      value: 1.5
+      var: t2m_mean_anomaly_clim
+    - op: <
+      value: -0.5
+      var: precip_mm_sum_anomaly_clim
+- id: ja_rapid_growth_phase
+  label: 'JAMAICA_BLUEMOUNTAINS: Rapid vegetative growth'
+  note: Strong NDVI increase suggests active growth or green-up.
+  when:
+    all:
+    - op: '>'
+      value: 0.1
+      var: "\u0394ndvi_10d"
+    - op: '>'
+      value: 0.5
+      var: ndvi_zscore
+- id: ja_harvest_signal
+  label: 'JAMAICA_BLUEMOUNTAINS: Potential harvest or senescence'
+  note: Vegetation decline with low canopy greenness (possible harvest).
+  when:
+    all:
+    - op: <
+      value: -0.1
+      var: "\u0394ndvi_10d"
+    - op: <
+      value: 0.4
+      var: EVI2
+variables:
+  precipitation:
+    column: precip_mm_sum
+    enabled: true
+  soil_moisture:
+    column: soil_surface_moisture
+    enabled: true
+  temperature:
+    column: t2m_mean
+    enabled: true
+  vegetation:
+    column: ndvi
+    enabled: true
+windows:
+  plot_context_days: 60
+  spi_long: 90
+  spi_short: 30

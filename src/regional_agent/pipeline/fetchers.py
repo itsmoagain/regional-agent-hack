@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, Literal, Optional
 
-from regional_agent.config import LayerSpec
+from src.regional_agent.config import LayerSpec
 
 FetchMode = Literal["bootstrap", "refresh"]
 

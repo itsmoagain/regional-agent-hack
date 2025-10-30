@@ -1,6 +1,9 @@
+from __future__ import annotations
+
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 #!/usr/bin/env python3
 """Evaluate the latest Random Forest model for a region."""
-from __future__ import annotations
 
 import argparse
 import json

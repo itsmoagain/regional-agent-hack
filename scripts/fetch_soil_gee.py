@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 #!/usr/bin/env python3
 """
 Fetch daily soil moisture (surface + root zone) using Google Earth Engine (SMAP 10 km HSL dataset)

@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 #!/usr/bin/env python3
 """
 Build region cache by merging all fetcher outputs (CHIRPS, SMAP, NDVI, ERA5)

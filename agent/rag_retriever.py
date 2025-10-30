@@ -14,7 +14,7 @@ except ImportError:  # pragma: no cover - package usage
 if scripts_shared is not None:
     load_region_profile = scripts_shared.load_region_profile
 else:
-    from regional_agent.config import load_region_profile  # type: ignore  # pragma: no cover
+    from src.regional_agent.config import load_region_profile  # type: ignore  # pragma: no cover
 
 
 CONTEXT_DIR = Path("data") / "context"

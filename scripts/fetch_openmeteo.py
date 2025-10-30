@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 #!/usr/bin/env python3
 """
 Fetch daily temperature (mean, max, min) and optional precipitation using the Open-Meteo ERA5 archive API,

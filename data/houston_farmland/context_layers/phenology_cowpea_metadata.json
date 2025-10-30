@@ -1,0 +1,15 @@
+{
+  "timestamp": "2025-10-30T07:17:00.589555+00:00",
+  "lat": 29.65,
+  "lon": -95.55,
+  "crop": {
+    "name": "Cowpea",
+    "sci_name": "Vigna unguiculata",
+    "fao_code": 308,
+    "cycle_days": 95,
+    "season_start": 95,
+    "season_end": 215,
+    "source": "FAO Crop Calendar"
+  },
+  "source": "OpenMeteo_GDD"
+}

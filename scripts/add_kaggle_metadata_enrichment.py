@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import json, os, datetime
 
 TAGS = ["climate", "agriculture", "green-ai", "cpu-efficient", "spatial-data", "time-series"]

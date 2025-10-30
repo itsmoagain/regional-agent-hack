@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 #!/usr/bin/env python3
 """
 Fetch daily agroclimatic data from NASA POWER API to build phenology context layers.

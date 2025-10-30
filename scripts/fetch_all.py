@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 #!/usr/bin/env python3
 """
 Fetch all datasets for a region (CHIRPS, SMAP, NDVI, Open-Meteo).
@@ -10,7 +12,6 @@ Usage:
   python scripts/fetch_all.py --region hungary_farmland --mode active
 """
 
-from __future__ import annotations
 import argparse
 import subprocess
 import sys

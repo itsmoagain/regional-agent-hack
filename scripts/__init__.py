@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 """Helper utilities for running project scripts as a package."""
 
 # Re-export the dependency helper so scripts can import it without

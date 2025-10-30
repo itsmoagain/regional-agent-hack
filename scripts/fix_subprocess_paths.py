@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 #!/usr/bin/env python3
 """
 Audit and patch all subprocess.run([sys.executable, ...]) calls so they use sys.executable instead.

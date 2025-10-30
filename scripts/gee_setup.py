@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 #!/usr/bin/env python3
 """
 gee_setup.py — Ensure Google Earth Engine (GEE) is installed & authenticated.
@@ -7,7 +11,6 @@ Usage:
     ensure_gee_ready(project="your-gcp-project-id")  # project optional
 """
 
-from __future__ import annotations
 import os
 import sys
 import json

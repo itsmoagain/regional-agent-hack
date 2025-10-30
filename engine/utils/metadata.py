@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping
 
-from regional_agent.config import (
+from src.regional_agent.config import (
     get_region_current_dir,
     load_region_profile,
 )

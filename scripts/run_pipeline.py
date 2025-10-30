@@ -1,6 +1,9 @@
+from __future__ import annotations
+
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 #!/usr/bin/env python3
 """Unified entry point for the regional climate insight pipeline."""
-from __future__ import annotations
 
 import argparse
 import csv
@@ -69,7 +72,7 @@ if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
 def _config():
     global _CONFIG_MODULE
     if _CONFIG_MODULE is None:
-        from regional_agent import config as cfg  # noqa: WPS433 - runtime import
+        from src.regional_agent import config as cfg  # noqa: WPS433 - runtime import
 
         _CONFIG_MODULE = cfg
     return _CONFIG_MODULE

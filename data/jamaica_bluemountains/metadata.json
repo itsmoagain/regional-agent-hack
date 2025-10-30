@@ -1,0 +1,58 @@
+{
+  "precip_mm_sum": {
+    "description": "Daily precipitation total from CHIRPS (Climate Hazards Group InfraRed Precipitation with Station data)",
+    "units": "mm/day",
+    "temporal_dynamics": "fast",
+    "source": "UCSB/CHG/CHIRPS/DAILY",
+    "fill_policy": "NaN if missing"
+  },
+  "soil_surface_moisture": {
+    "description": "Top 0\u20135 cm volumetric soil moisture (surface layer)",
+    "units": "m3/m3",
+    "temporal_dynamics": "fast",
+    "source": "NASA_USDA/HSL/SMAP_soil_moisture",
+    "fill_policy": "NaN if missing"
+  },
+  "soil_rootzone_moisture": {
+    "description": "5\u2013100 cm volumetric soil moisture (root-zone layer)",
+    "units": "m3/m3",
+    "temporal_dynamics": "slow",
+    "source": "NASA_USDA/HSL/SMAP_soil_moisture",
+    "fill_policy": "NaN if missing"
+  },
+  "ndvi_mean": {
+    "description": "MODIS NDVI (vegetation greenness, scaled 0\u20131)",
+    "units": "unitless (0\u20131)",
+    "temporal_dynamics": "medium",
+    "source": "MODIS/061/MOD13Q1",
+    "fill_policy": "NaN if missing"
+  },
+  "t2m_mean": {
+    "description": "Daily mean 2-meter air temperature from ERA5",
+    "units": "\u00b0C",
+    "temporal_dynamics": "fast",
+    "source": "Open-Meteo ERA5 API",
+    "fill_policy": "NaN if missing"
+  },
+  "t2m_max": {
+    "description": "Daily maximum 2-meter air temperature from ERA5",
+    "units": "\u00b0C",
+    "temporal_dynamics": "fast",
+    "source": "Open-Meteo ERA5 API",
+    "fill_policy": "NaN if missing"
+  },
+  "t2m_min": {
+    "description": "Daily minimum 2-meter air temperature from ERA5",
+    "units": "\u00b0C",
+    "temporal_dynamics": "fast",
+    "source": "Open-Meteo ERA5 API",
+    "fill_policy": "NaN if missing"
+  },
+  "precip_mm": {
+    "description": "Daily precipitation total from ERA5 via Open-Meteo (fallback source)",
+    "units": "mm/day",
+    "temporal_dynamics": "fast",
+    "source": "Open-Meteo ERA5 API",
+    "fill_policy": "NaN if missing"
+  }
+}

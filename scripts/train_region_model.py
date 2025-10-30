@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 #!/usr/bin/env python3
 """Train a region-specific Random Forest model using cached features."""
-from __future__ import annotations
 
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
