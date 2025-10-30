@@ -98,7 +98,9 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
         "vegetables": 8, "tomato": 10,
         "generic_crop": 10
     }
-    base_temp = base_temp_map.get(crop.lower(), 10)
+   crop_name = crop["name"] if isinstance(crop, dict) else crop
+   base_temp = base_temp_map.get(str(crop_name).lower(), 10)
+
 
     try:
         r = requests.get(url, params=params, timeout=60)
