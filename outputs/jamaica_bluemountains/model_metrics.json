@@ -1,0 +1,11 @@
+{
+  "region": "jamaica_bluemountains",
+  "timestamp": "2025-10-30T19:52:23.312588Z",
+  "metrics": {
+    "r2": 0.0,
+    "mae": 0.0,
+    "rmse": 0.0,
+    "n": 82
+  },
+  "notes": "Fallback heuristic model used due to missing ML dependencies."
+}
