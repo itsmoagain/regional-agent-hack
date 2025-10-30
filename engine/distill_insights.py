@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Aggregate daily anomaly signals into monthly insight features."""
 
 from __future__ import annotations
@@ -6,13 +7,76 @@ from pathlib import Path
 from typing import Dict, Iterable, Mapping
 
 import pandas as pd
+import numpy as np
 
 from regional_agent.config import get_region_current_dir, get_region_data_root
-
 from .model_predict import predict_outcomes
 
 OUTPUT_DIR = Path("outputs")
 
+
+# -------------------------------------------------------
+# 🗣️ Plain-Language Insight Generator
+# -------------------------------------------------------
+
+def generate_plain_language(row):
+    """
+    Translate numeric anomaly and model signals into interpretable text.
+    Used in the hackathon demo to show human-readable insights.
+    """
+
+    msgs = []
+    precip = row.get("precip_anom", np.nan)
+    ndvi = row.get("ndvi_anomaly", np.nan)
+    spi = row.get("spi", np.nan)
+    soil = row.get("soil_surface_moisture", np.nan)
+    rf_signal = row.get("model_signal", np.nan)
+
+    # 🌧️ Rainfall anomalies
+    if pd.notna(spi) and spi < -1.0:
+        msgs.append("⚠️ Prolonged rainfall deficit and negative SPI indicate early-season drought stress.")
+    elif pd.notna(precip) and precip < -1:
+        msgs.append("🌤️ Rainfall below normal — reduced soil recharge expected.")
+    elif pd.notna(precip) and precip > 1:
+        msgs.append("🌦️ Above-average rainfall — possible waterlogging or field access delays.")
+    else:
+        msgs.append("🌤️ Rainfall near seasonal norms.")
+
+    # 🌿 Vegetation response
+    if pd.notna(ndvi) and ndvi < -1:
+        msgs.append("🪴 NDVI drop suggests vegetation stress or delayed growth.")
+    elif pd.notna(ndvi) and ndvi > 1:
+        msgs.append("🌱 Vegetation vigor above average — canopy growth strong.")
+    else:
+        msgs.append("🌾 Vegetation conditions appear typical for this period.")
+
+    # 🪱 Soil moisture
+    if pd.notna(soil) and soil < -1:
+        msgs.append("🧱 Soil moisture deficit may limit root uptake.")
+    elif pd.notna(soil) and soil > 1:
+        msgs.append("💧 Soil moisture above average — irrigation needs reduced.")
+
+    # 🤖 Model signal
+    if pd.notna(rf_signal) and rf_signal > 0.8:
+        msgs.append("🤖 Model predicts high probability of crop stress.")
+    elif pd.notna(rf_signal) and 0.4 < rf_signal <= 0.8:
+        msgs.append("🤖 Model indicates moderate variability in crop response.")
+    else:
+        msgs.append("🤖 Model indicates stable growth conditions.")
+
+    return " ".join(msgs).strip()
+
+
+def attach_insight_text(df: pd.DataFrame) -> pd.DataFrame:
+    """Attach plain-language text summaries for each monthly record."""
+    if "insight_text" not in df.columns:
+        df["insight_text"] = df.apply(generate_plain_language, axis=1)
+    return df
+
+
+# -------------------------------------------------------
+# 🌎 Region Distillation
+# -------------------------------------------------------
 
 def distill_region(region: str) -> str:
     """Distil daily anomalies for *region* into a monthly summary table."""
@@ -36,14 +100,23 @@ def distill_region(region: str) -> str:
 
     grouped = df.groupby("month", as_index=False).agg(agg_map).rename(columns=rename_map).sort_values("month")
 
+    # Run model predictions
     grouped["model_signal"] = predict_outcomes(region, grouped)
 
+    # Attach readable insights
+    grouped = attach_insight_text(grouped)
+
+    # Save outputs
     output_dir = OUTPUT_DIR / region
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "distilled_summary.csv"
     grouped.to_csv(output_path, index=False)
     return str(output_path)
 
+
+# -------------------------------------------------------
+# 🔍 Helpers
+# -------------------------------------------------------
 
 def _resolve_input_path(region: str) -> Path:
     candidates = [
@@ -91,6 +164,7 @@ def _select_metric_columns(df: pd.DataFrame) -> Mapping[str, str | None]:
 
     return {
         "spi": pick("spi", "spi_30", contains=("spi",)),
+        "precip_anom": pick("precip_anom", "precipitation_anomaly", contains=("precip", "anom")),
         "ndvi_anomaly": pick("ndvi_anomaly", "ndvi_zscore", contains=("ndvi", "anom")),
         "soil_surface_moisture": pick(
             "soil_surface_moisture",
@@ -107,3 +181,4 @@ def _select_metric_columns(df: pd.DataFrame) -> Mapping[str, str | None]:
 
 
 __all__ = ["distill_region"]
+
