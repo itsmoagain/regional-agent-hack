@@ -49,8 +49,7 @@ def distill_region(region: str) -> Path:
 
 def write_insight_feed(region: str) -> Path:
     """
-    Generate a plain-language insight feed from the distilled summary.
-    Saves to outputs/<region>/insight_feed.csv
+    Generate readable climate insights from the distilled summary.
     """
     distilled_path = OUTPUT_DIR / region / "distilled_summary.csv"
     if not distilled_path.exists():
@@ -58,17 +57,46 @@ def write_insight_feed(region: str) -> Path:
 
     df = pd.read_csv(distilled_path)
 
-    # Create simple example insight text
-    if "ndvi_anomaly" in df.columns and "spi" in df.columns:
-        df["insight_text"] = (
-            "Month " + df["month"].astype(str)
-            + ": NDVI anomaly " + df["ndvi_anomaly"].round(2).astype(str)
-            + ", rainfall SPI " + df["spi"].round(2).astype(str)
-        )
-    else:
-        df["insight_text"] = "No anomaly metrics available."
+    insights = []
+    for _, row in df.iterrows():
+        spi = row.get("spi", np.nan)
+        ndvi = row.get("ndvi_anomaly", np.nan)
+        temp = row.get("temp_mean", np.nan)
+        crop = row.get("crop_type", "crop")
+        region_name = row.get("region_name", region.replace("_", " ").title())
+        month = row.get("month", "unknown")
 
+        # Simple narrative logic
+        parts = [f"{region_name} ({crop}) — {month}:"]
+        if not np.isnan(spi):
+            if spi < -1:
+                parts.append("dry conditions (below-normal rainfall)")
+            elif spi > 1:
+                parts.append("wet conditions (above-normal rainfall)")
+            else:
+                parts.append("near-normal rainfall")
+
+        if not np.isnan(ndvi):
+            if ndvi < -0.1:
+                parts.append("vegetation stress observed")
+            elif ndvi > 0.1:
+                parts.append("healthy vegetation growth")
+            else:
+                parts.append("stable vegetation levels")
+
+        if not np.isnan(temp):
+            if temp > 28:
+                parts.append("high temperatures may increase evapotranspiration.")
+            elif temp < 15:
+                parts.append("cooler-than-average temperatures noted.")
+            else:
+                parts.append("temperatures within typical range.")
+
+        insights.append(" ".join(parts))
+
+    df["insight_text"] = insights
     out_path = OUTPUT_DIR / region / "insight_feed.csv"
     df.to_csv(out_path, index=False)
     print(f"✅ Saved insight feed: {out_path}")
     return out_path
+
