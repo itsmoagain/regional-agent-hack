@@ -36,6 +36,7 @@ data/**/cache/
 data/**/tmp/
 data/**/ndvi_anomaly_preview.*
 !data/**/current/ndvi_anomaly_preview.*
+!data/**/current/**
 
 # outputs/
 !outputs/**
