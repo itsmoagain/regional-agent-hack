@@ -16,11 +16,39 @@ Prepares a new region for analysis by:
 You can type “exit” at any prompt to cancel safely.
 """
 
-import sys
-import subprocess
-import re
+import importlib
 import os
+import re
+import subprocess
+import sys
 from pathlib import Path
+
+# ------------------------------------------------------------
+# Ensure rf_training_lib is installed and importable
+# ------------------------------------------------------------
+
+
+def ensure_rf_training_lib():
+    """Auto-installs and verifies rf_training_lib."""
+
+    try:
+        importlib.import_module("rf_training_lib")
+        print("✅ rf_training_lib found and loaded.")
+    except ImportError:
+        print("📦 Installing rf_training_lib (editable mode)...")
+        lib_path = Path(__file__).resolve().parents[1] / "rf_training_lib"
+        if not lib_path.exists():
+            print(f"⚠️ rf_training_lib not found at {lib_path}.")
+            return
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "-e", str(lib_path)]
+        )
+        importlib.import_module("rf_training_lib")
+        print("✅ rf_training_lib successfully installed and verified.")
+
+
+# Run check during setup
+ensure_rf_training_lib()
 
 # ------------------------------------------------------------
 # Ensure relative imports work
