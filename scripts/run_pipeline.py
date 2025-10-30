@@ -678,7 +678,7 @@ print("""
   to let the model learn from your field updates and refine future insights.
 """)
 
-    return 0
+return 0
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
