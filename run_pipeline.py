@@ -93,4 +93,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-diff --git a/scripts/prep_kaggle_export.py b/scripts/prep_kaggle_export.py

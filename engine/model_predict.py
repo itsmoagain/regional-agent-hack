@@ -150,4 +150,3 @@ class _FallbackModel:
 
 
 __all__ = ["predict_outcomes"]
-diff --git a/engine/utils/__init__.py b/engine/utils/__init__.py

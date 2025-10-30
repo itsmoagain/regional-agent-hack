@@ -1,27 +1,12 @@
 #!/usr/bin/env python3
-"""
-Auto-initialize a region's folder structure and config YAML.
+"""Auto-initialize a region's folder structure and config YAML."""
 
-Creates:
-  - data/<region>/flags/
-  - data/<region>/plots/
-  - data/<region>/context_layers/
-  - regions/profiles/insight.<region>.yml (if missing)
-
-Now includes:
-  ✅ Full rolling/climatology variable structure
-  ✅ Phase A rule dictionary for interpretive logic
-  ✅ BBOX + crop list + metadata hooks for context layers
-  ✅ Automatic context layer generation (soil, elevation, phenology)
-"""
-import os
-import sys
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from importlib import import_module
-from pathlib import Path
-import subprocess
 from pathlib import Path
 
 try:

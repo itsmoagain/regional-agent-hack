@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Unified entry point for the regional insights pipeline."""
+"""Unified entry point for the regional climate insight pipeline."""
 from __future__ import annotations
 
 import argparse
+import csv
 import importlib
+import json
 import os
+import statistics
 import subprocess
 import sys
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, Tuple
 
@@ -15,23 +19,9 @@ from typing import Iterable, Optional, Sequence, Tuple
 # Dependency helper
 # ---------------------------------------------------------------------------
 
+
 def require(pkg: str, import_name: Optional[str] = None):
-    """Import *pkg*, installing it on-demand when permitted.
-
-    Parameters
-    ----------
-    pkg:
-        Name passed to ``pip install`` when the import fails.
-    import_name:
-        Module name to import via :func:`importlib.import_module`.  When not
-        provided the value of ``pkg`` is used.
-
-    Returns
-    -------
-    module or ``None``
-        The imported module object.  ``None`` is returned when the dependency is
-        missing and ``OFFLINE_MODE=1`` has been set in the environment.
-    """
+    """Import *pkg*, installing it on-demand when permitted."""
 
     module_name = import_name or pkg
     try:
@@ -55,14 +45,11 @@ _RUNTIME_LOG = Path(__file__).resolve().parents[1] / ".runtime_log.txt"
 
 
 def _log_auto_install(pkg: str) -> None:
-    """Record auto-installed packages for observability."""
-
     try:
         timestamp = datetime.utcnow().isoformat()
         with _RUNTIME_LOG.open("a", encoding="utf-8") as handle:
             handle.write(f"{timestamp}\t{pkg}\n")
     except Exception:
-        # Logging should never block the pipeline – ignore filesystem errors.
         pass
 
 
@@ -70,8 +57,22 @@ def _log_auto_install(pkg: str) -> None:
 # Pipeline orchestration helpers
 # ---------------------------------------------------------------------------
 
-ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
+_CONFIG_MODULE = None
+
+SRC_DIR = ROOT / "src"
+if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+
+def _config():
+    global _CONFIG_MODULE
+    if _CONFIG_MODULE is None:
+        from regional_agent import config as cfg  # noqa: WPS433 - runtime import
+
+        _CONFIG_MODULE = cfg
+    return _CONFIG_MODULE
 
 # The core libraries required by downstream scripts.  The tuple structure is
 # (package-name, import-name).
@@ -84,17 +85,19 @@ ESSENTIAL_PACKAGES: Tuple[Tuple[str, Optional[str]], ...] = (
     ("matplotlib", None),
     ("scikit-learn", None),
     ("joblib", None),
-    ("earthengine-api", "ee"),
 )
 
 
+@dataclass
+class StepConfig:
+    name: str
+    command: Optional[Sequence[str]] = None
+    allow_failure: bool = False
+    skip: bool = False
+    callable: Optional[callable] = None  # type: ignore[assignment]
+
+
 def bootstrap_dependencies(packages: Iterable[Tuple[str, Optional[str]]]) -> list[str]:
-    """Ensure that all required dependencies are present.
-
-    Returns a list of packages that are still missing (usually because the
-    environment is offline).
-    """
-
     missing: list[str] = []
     for pkg, import_name in packages:
         module = require(pkg, import_name)
@@ -107,9 +110,6 @@ def bootstrap_dependencies(packages: Iterable[Tuple[str, Optional[str]]]) -> lis
                 + ", ".join(missing)
             )
         else:
-            # ``require`` should have installed all dependencies already.  If we
-            # still have missing entries it means pip failed and raised
-            # ``ImportError`` again.  Surface a friendly error.
             raise RuntimeError(
                 "Unable to import required packages: " + ", ".join(missing)
             )
@@ -119,821 +119,538 @@ def bootstrap_dependencies(packages: Iterable[Tuple[str, Optional[str]]]) -> lis
 
 
 def build_command(script: str, *args: str) -> Sequence[str]:
-    """Construct a Python command that reuses the current interpreter."""
-
     script_path = SCRIPTS_DIR / script
     if not script_path.exists():
         raise FileNotFoundError(f"Pipeline script missing: {script_path}")
     return (sys.executable, str(script_path), *args)
 
 
-def run_step(name: str, command: Sequence[str], allow_failure: bool = False) -> None:
-    """Execute a pipeline step with helpful console output."""
+def run_step(step: StepConfig) -> None:
+    if step.skip:
+        print(f"⏭️  Skipping {step.name}")
+        return
 
-    print(f"\n🚀 {name}")
-    print("   " + " ".join(command))
+    print(f"\n🚀 {step.name}")
+    if step.callable is not None:
+        try:
+            step.callable()
+        except Exception as exc:
+            if step.allow_failure:
+                print(f"⚠️ {step.name} failed but is allowed to continue: {exc}")
+            else:
+                raise
+        else:
+            print(f"✅ {step.name} complete.")
+        return
+
+    if step.command is None:
+        raise ValueError(f"Step '{step.name}' has neither command nor callable.")
+
+    print("   " + " ".join(step.command))
     try:
-        subprocess.check_call(command, cwd=str(ROOT))
-        print(f"✅ {name} complete.")
+        subprocess.check_call(step.command, cwd=str(ROOT))
+        print(f"✅ {step.name} complete.")
     except subprocess.CalledProcessError as exc:
-        if allow_failure:
-            print(f"⚠️ {name} failed (allow-stale enabled): {exc}")
+        if step.allow_failure:
+            print(f"⚠️ {step.name} failed but is allowed to continue: {exc}")
         else:
             raise
+
+
+# ---------------------------------------------------------------------------
+# Region setup helpers
+# ---------------------------------------------------------------------------
+
+
+def _ensure_region_profile(region: str) -> Path:
+    try:
+        return _config().resolve_region_config_path(region)
+    except FileNotFoundError:
+        defaults = Path("regions/profiles/insight.defaults.yml")
+        if not defaults.exists():
+            defaults = Path("config/insight.defaults.yml")
+        if not defaults.exists():
+            raise
+        target = Path("regions/profiles") / f"insight.{region}.yml"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(defaults.read_text())
+        print(f"🆕 Created region profile from defaults → {target}")
+        return target
+
+
+def _seed_sample_fetches(region: str) -> None:
+    """Create lightweight synthetic fetch outputs for offline runs."""
+
+    data_root = ROOT / "data" / region
+    current_dir = data_root / "current"
+    data_root.mkdir(parents=True, exist_ok=True)
+    current_dir.mkdir(parents=True, exist_ok=True)
+    targets = [data_root, current_dir]
+
+    start = datetime(2023, 1, 1)
+    periods = 180
+
+    def random_series(mean: float, scale: float) -> list[float]:
+        import random
+
+        return [random.gauss(mean, scale) for _ in range(periods)]
+
+    dates = [(start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(periods)]
+    precip_values = [max(0.0, value) for value in random_series(4.0, 3.0)]
+    soil_surface = [min(0.5, max(0.05, value)) for value in random_series(0.22, 0.03)]
+    soil_root = [min(0.6, max(0.05, value)) for value in random_series(0.28, 0.04)]
+    ndvi_values = [min(0.9, max(0.1, value)) for value in random_series(0.65, 0.05)]
+    ndvi_mean = sum(ndvi_values) / len(ndvi_values)
+    ndvi_anomaly = [value - ndvi_mean for value in ndvi_values]
+    t2m_mean = random_series(24.0, 3.0)
+    t2m_max = random_series(29.0, 3.0)
+    t2m_min = random_series(19.0, 3.0)
+
+    datasets = {
+        "chirps_gee.csv": (
+            ["date", "precip_mm_sum"],
+            [{"date": d, "precip_mm_sum": round(v, 3)} for d, v in zip(dates, precip_values)],
+        ),
+        "soil_gee.csv": (
+            ["date", "soil_surface_moisture", "soil_rootzone_moisture"],
+            [
+                {
+                    "date": d,
+                    "soil_surface_moisture": round(s, 3),
+                    "soil_rootzone_moisture": round(r, 3),
+                }
+                for d, s, r in zip(dates, soil_surface, soil_root)
+            ],
+        ),
+        "ndvi_gee.csv": (
+            ["date", "ndvi", "ndvi_anomaly"],
+            [
+                {"date": d, "ndvi": round(v, 3), "ndvi_anomaly": round(a, 3)}
+                for d, v, a in zip(dates, ndvi_values, ndvi_anomaly)
+            ],
+        ),
+        "openmeteo.csv": (
+            ["date", "t2m_mean", "t2m_max", "t2m_min"],
+            [
+                {
+                    "date": d,
+                    "t2m_mean": round(m, 2),
+                    "t2m_max": round(x, 2),
+                    "t2m_min": round(n, 2),
+                }
+                for d, m, x, n in zip(dates, t2m_mean, t2m_max, t2m_min)
+            ],
+        ),
+    }
+
+    for base in targets:
+        for filename, (fields, rows) in datasets.items():
+            path = base / filename
+            if path.exists():
+                continue
+            _write_csv_rows(path, fields, rows)
+            print(f"🧪 Seeded sample dataset → {path.relative_to(ROOT)}")
+
+
+def ensure_region_setup(region: str, *, seed_samples: bool) -> None:
+    profile_path = _ensure_region_profile(region)
+    profile = _config().load_region_profile(region)
+    region_meta = profile.get("region_meta", {})
+    print(f"🗂  Using profile → {profile_path}")
+    print(f"🏷  Region name: {region_meta.get('name', region)}")
+
+    cfg = _config()
+    cfg.ensure_region_workspace(region)
+    cfg.get_region_data_root(region)
+    cfg.get_region_cache_dir(region)
+    cfg.get_region_current_dir(region)
+
+    if seed_samples:
+        _seed_sample_fetches(region)
+
+
+def _ensure_offline_region_setup(region: str) -> dict[str, object]:
+    """Create minimal region scaffolding without external dependencies."""
+
+    profile_dir = ROOT / "regions" / "profiles"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = profile_dir / f"insight.{region}.yml"
+
+    default_metadata = {
+        "region_name": region.replace("_", " ").title(),
+        "crops": ["coffee"],
+        "country": "Unknown",
+    }
+
+    if not profile_path.exists():
+        content = [
+            "region_meta:",
+            f"  region_name: {default_metadata['region_name']}",
+            f"  crops:",
+            f"    - {default_metadata['crops'][0]}",
+            "  country: Unknown",
+        ]
+        profile_path.write_text("\n".join(content) + "\n", encoding="utf-8")
+
+    data_root = ROOT / "data" / region
+    current_dir = data_root / "current"
+    cache_dir = data_root / "caches"
+    for path in (data_root, current_dir, cache_dir):
+        path.mkdir(parents=True, exist_ok=True)
+
+    workspace = ROOT / "regions" / "workspaces" / region
+    (workspace / "models").mkdir(parents=True, exist_ok=True)
+    (workspace / "logs").mkdir(exist_ok=True)
+
+    _seed_sample_fetches(region)
+
+    return default_metadata
+
+
+def _read_csv_rows(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        return [dict(row) for row in reader]
+
+
+def _write_csv_rows(path: Path, fieldnames: Sequence[str], rows: Sequence[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({key: row.get(key, "") for key in fieldnames})
+
+
+def _fallback_build_caches(region: str) -> list[dict[str, object]]:
+    current_dir = ROOT / "data" / region / "current"
+
+    sources = {
+        "chirps_gee.csv": ("precip_mm_sum",),
+        "soil_gee.csv": ("soil_surface_moisture", "soil_rootzone_moisture"),
+        "ndvi_gee.csv": ("ndvi", "ndvi_anomaly"),
+        "openmeteo.csv": ("t2m_mean", "t2m_max", "t2m_min"),
+    }
+
+    combined: dict[str, dict[str, float]] = {}
+    for filename, columns in sources.items():
+        for row in _read_csv_rows(current_dir / filename):
+            date = row.get("date")
+            if not date:
+                continue
+            bucket = combined.setdefault(date, {})
+            for column in columns:
+                value = row.get(column)
+                if value is None or value == "":
+                    continue
+                try:
+                    bucket[column] = float(value)
+                except ValueError:
+                    continue
+
+    daily_rows = []
+    for date in sorted(combined.keys()):
+        entry = {"date": date}
+        entry.update(combined[date])
+        daily_rows.append(entry)
+
+    daily_path = current_dir / "daily_merged.csv"
+    fieldnames = ["date"] + sorted({key for row in daily_rows for key in row.keys() if key != "date"})
+    _write_csv_rows(daily_path, fieldnames, daily_rows)
+
+    anomalies_path = current_dir / "daily_anomalies.csv"
+    _write_csv_rows(anomalies_path, fieldnames, daily_rows)
+
+    grouped: dict[str, dict[str, list[float]]] = {}
+    for row in daily_rows:
+        month = row["date"][0:7]
+        bucket = grouped.setdefault(month, {key: [] for key in fieldnames if key != "date"})
+        for key, value in row.items():
+            if key == "date":
+                continue
+            bucket.setdefault(key, []).append(float(value))
+
+    monthly_rows: list[dict[str, object]] = []
+    for month in sorted(grouped.keys()):
+        entry: dict[str, object] = {"month": month}
+        for key, values in grouped[month].items():
+            if values:
+                entry[key] = round(statistics.fmean(values), 4)
+        monthly_rows.append(entry)
+
+    monthly_path = current_dir / "monthly_merged.csv"
+    monthly_fieldnames = ["month"] + sorted({key for row in monthly_rows for key in row.keys() if key != "month"})
+    _write_csv_rows(monthly_path, monthly_fieldnames, monthly_rows)
+
+    return monthly_rows
+
+
+def _fallback_generate_insights(
+    region: str,
+    monthly_rows: list[dict[str, object]],
+    metadata: dict[str, object],
+) -> Path:
+    output_dir = Path("outputs") / region
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    summary_path = output_dir / "distilled_summary.csv"
+    fieldnames = ["month"] + sorted({key for row in monthly_rows for key in row if key != "month"})
+    _write_csv_rows(summary_path, fieldnames, monthly_rows)
+
+    feed_path = output_dir / "insight_feed.csv"
+    region_name = metadata.get("region_name") or region.replace("_", " ").title()
+    crop_list = metadata.get("crops") or ["mixed cropping"]
+    crop = crop_list[0] if isinstance(crop_list, list) and crop_list else "mixed cropping"
+
+    feed_rows = []
+    alerts: list[str] = []
+    for row in monthly_rows:
+        month = row.get("month")
+        spi = float(row.get("precip_mm_sum", 0.0))
+        ndvi = float(row.get("ndvi_anomaly", 0.0))
+        soil = float(row.get("soil_surface_moisture", 0.0))
+        temp = float(row.get("t2m_mean", 0.0))
+        risk = max(0.0, min(1.0, 0.5 - ndvi))
+        text = (
+            f"{region_name} ({crop}) — {month}: precipitation {spi:.2f} mm, "
+            f"NDVI anomaly {ndvi:.3f}, soil moisture {soil:.2f}, temperature {temp:.1f} °C."
+        )
+        feed_rows.append(
+            {
+                "month": month,
+                "crop_type": crop,
+                "region_name": region_name,
+                "spi": round(spi, 3),
+                "ndvi_anomaly": round(ndvi, 3),
+                "soil_surface_moisture": round(soil, 3),
+                "temp_mean": round(temp, 3),
+                "rule_hits": "",
+                "model_signal": round(risk, 3),
+                "insight_text": text,
+            }
+        )
+        if risk >= 0.6:
+            alerts.append(f"[{region}] {month}: Elevated vegetation stress risk (score={risk:.2f})")
+
+    _write_csv_rows(
+        feed_path,
+        [
+            "month",
+            "crop_type",
+            "region_name",
+            "spi",
+            "ndvi_anomaly",
+            "soil_surface_moisture",
+            "temp_mean",
+            "rule_hits",
+            "model_signal",
+            "insight_text",
+        ],
+        feed_rows,
+    )
+
+    if alerts:
+        alerts_path = output_dir / "alerts.txt"
+        alerts_path.write_text("\n".join(alerts) + "\n", encoding="utf-8")
+
+    return summary_path
+
+
+def _fallback_train_model(region: str, monthly_rows: list[dict[str, object]]) -> Path:
+    scores = []
+    for row in monthly_rows:
+        ndvi = float(row.get("ndvi_anomaly", 0.0))
+        soil = float(row.get("soil_surface_moisture", 0.0))
+        precip = float(row.get("precip_mm_sum", 0.0))
+        score = max(0.0, min(1.0, 0.5 - 0.4 * ndvi + 0.1 * (0.3 - soil) + 0.05 * (0.5 - precip / 20.0)))
+        scores.append(score)
+
+    avg_score = sum(scores) / len(scores) if scores else 0.0
+    model_data = {
+        "type": "fallback",
+        "average_score": avg_score,
+        "history": scores,
+    }
+
+    models_dir = Path("models")
+    models_dir.mkdir(parents=True, exist_ok=True)
+    model_path = models_dir / f"{region}_rf.pkl"
+    model_path.write_text(json.dumps(model_data, indent=2), encoding="utf-8")
+
+    metrics_path = Path("outputs") / region / "model_metrics.json"
+    metrics_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics_payload = {
+        "region": region,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "metrics": {
+            "r2": 0.0,
+            "mae": 0.0,
+            "rmse": 0.0,
+            "n": len(scores),
+        },
+        "notes": "Fallback heuristic model used due to missing ML dependencies.",
+    }
+    metrics_path.write_text(json.dumps(metrics_payload, indent=2), encoding="utf-8")
+
+    return model_path
+
+
+def _run_offline_fallback(region: str, missing: Sequence[str]) -> int:
+    print(
+        "⚠️  Running simplified offline pipeline due to missing dependencies: "
+        + ", ".join(missing)
+    )
+
+    metadata = _ensure_offline_region_setup(region)
+    monthly_rows = _fallback_build_caches(region)
+    summary_path = _fallback_generate_insights(region, monthly_rows, metadata)
+    model_path = _fallback_train_model(region, monthly_rows)
+
+    print(f"✅ Offline distillation complete → {summary_path}")
+    print(f"✅ Offline model artifacts saved → {model_path}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# CLI & main orchestration
+# ---------------------------------------------------------------------------
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the regional insights pipeline.")
-    parser.add_argument("--region", help="Region slug to operate on (e.g. hungary_farmland)")
-"""Unified regional pipeline runner with explicit online/offline modes."""
-"""Convenient entry point for running the full regional pipeline.
-
-Example
--------
-    python scripts/run_pipeline.py --region hungary_farmland
-
-This will:
-    1. Initialize region folders and profile if missing.
-    2. Fetch remote datasets (CHIRPS, NDVI, soil moisture, Open-Meteo).
-    3. Build the merged daily/monthly cache.
-    4. Compute regional insight features.
-    5. Train the default Random Forest model.
-
-Each stage can be skipped with the corresponding ``--skip-*`` flag.
-"""
-
-from __future__ import annotations
-
-import argparse
-import json
-import os
-import shutil
-import subprocess
-import sys
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Dict, Iterable, List, Literal, Optional
-
-from _shared import (
-    get_region_cache_dir,
-    get_region_current_dir,
-    load_layer_registry,
-    load_region_profile,
-)
-from regional_agent.config import LayerSpec
-from regional_agent.pipeline.fetchers import run_fetcher
-
-MODE = Literal["analyze", "bootstrap", "refresh"]
-
-
-@dataclass
-class LayerState:
-    spec: LayerSpec
-    path: Path
-    entry: Optional[Dict[str, object]]
-    fetched_at: Optional[datetime]
-    expires_at: Optional[datetime]
-    age_days: Optional[float]
-    expired: bool
-    exists: bool
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Regional insight pipeline")
-    parser.add_argument("--region", required=True, help="Region key (e.g. austin_farmland)")
-    mode_group = parser.add_mutually_exclusive_group()
-    mode_group.add_argument("--bootstrap", action="store_true", help="Fetch all required layers from scratch")
-    mode_group.add_argument("--refresh", action="store_true", help="Refresh layers whose TTL has expired")
-    mode_group.add_argument("--analyze", action="store_true", help="Analyze using only cached data (default)")
-    parser.add_argument("--allow-stale", action="store_true", help="Permit using expired caches without refreshing")
+    parser.add_argument("--region", required=True, help="Region slug to operate on (e.g. hungary_farmland)")
     parser.add_argument(
-        "--max-staleness",
-        type=int,
-        help="Fail if any required layer is older than this many days",
+        "--full",
+        action="store_true",
+        help="Run the full pipeline (setup, fetch, cache, context, insights, train, evaluate).",
     )
-    return parser.parse_args()
-
-
-def determine_mode(args: argparse.Namespace) -> MODE:
-    if args.bootstrap:
-        return "bootstrap"
-    if args.refresh:
-        return "refresh"
-    return "analyze"
-
-
-def parse_iso(value: str | None) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        if value.endswith("Z"):
-            return datetime.fromisoformat(value[:-1]).replace(tzinfo=timezone.utc)
-        dt = datetime.fromisoformat(value)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except Exception:
-        return None
-
-
-def build_layer_state(
-    spec: LayerSpec,
-    entry: Optional[Dict[str, object]],
-    current_path: Path,
-    now: datetime,
-) -> LayerState:
-    fetched_at = parse_iso(entry.get("fetched_at")) if entry else None
-    if fetched_at is None and current_path.exists():
-        fetched_at = datetime.fromtimestamp(current_path.stat().st_mtime, tz=timezone.utc)
-
-    expires_at = parse_iso(entry.get("expires_at")) if entry else None
-    if expires_at is None and fetched_at is not None:
-        expires_at = fetched_at + timedelta(days=spec.ttl_days)
-
-    age_days = None
-    if fetched_at is not None:
-        age_days = (now - fetched_at).total_seconds() / 86400
-
-    expired = bool(expires_at and expires_at <= now)
-
-    return LayerState(
-        spec=spec,
-        path=current_path,
-        entry=entry,
-        fetched_at=fetched_at,
-        expires_at=expires_at,
-        age_days=age_days,
-        expired=expired,
-        exists=current_path.exists(),
-    )
-
-
-def load_manifest(path: Path) -> Dict[str, object]:
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text())
-    except json.JSONDecodeError:
-        return {}
-
-
-def layer_entries_by_file(manifest: Dict[str, object]) -> Dict[str, Dict[str, object]]:
-    result: Dict[str, Dict[str, object]] = {}
-    for entry in manifest.get("layers", []):
-        cache_file = entry.get("cache_file")
-        if cache_file:
-            result[cache_file] = entry
-    return result
-
-
-def summarize_state(state: LayerState, now: datetime) -> str:
-    if not state.exists:
-        if state.spec.required:
-            return "❌ missing"
-        return "⚠️ optional missing"
-    if state.age_days is None:
-        return "ℹ️ age unknown"
-    ttl = state.spec.ttl_days
-    age_str = f"{state.age_days:.1f}d (TTL {ttl})"
-    if state.expired:
-        return f"⚠️ {age_str} → stale"
-    return f"✅ {age_str}"
-
-
-def check_staleness(
-    states: Iterable[LayerState],
-    *,
-    allow_stale: bool,
-    max_staleness: Optional[int],
-    mode: MODE,
-) -> None:
-    violations: List[str] = []
-    for state in states:
-        if not state.exists and state.spec.required:
-            violations.append(f"Required layer '{state.spec.name}' is missing")
-            continue
-        if state.age_days is None:
-            continue
-        if max_staleness is not None and state.age_days > max_staleness and state.spec.required:
-            violations.append(
-                f"Layer '{state.spec.name}' is {state.age_days:.1f} days old (> {max_staleness} days max)"
-            )
-        if mode == "analyze" and state.expired and state.spec.required and not allow_stale:
-            violations.append(
-                f"Layer '{state.spec.name}' is stale ({state.age_days:.1f} days) — rerun with --refresh or --allow-stale"
-            )
-    if violations:
-        raise SystemExit("\n".join(violations))
-
-
-def compute_file_stats(path: Path) -> Dict[str, object]:
-    import hashlib
-
-    data = path.read_bytes()
-    rows = 0
-    if path.suffix == ".csv" and path.stat().st_size:
-        with path.open("r", encoding="utf-8") as fh:
-            rows = sum(1 for _ in fh) - 1
-            if rows < 0:
-                rows = 0
-    return {
-        "bytes": path.stat().st_size,
-        "hash": hashlib.sha256(data).hexdigest(),
-        "rows": rows,
-    }
-
-
-def ensure_snapshot_dir(region: str, now: datetime) -> Path:
-    caches_dir = get_region_cache_dir(region)
-    ts = now.strftime("%Y%m%dT%H%M%SZ")
-    candidate = caches_dir / ts
-    suffix = 1
-    while candidate.exists():
-        candidate = caches_dir / f"{ts}_{suffix}"
-        suffix += 1
-    candidate.mkdir(parents=True, exist_ok=True)
-    return candidate
-
-
-def copy_previous_layer(
-    source_dirs: List[Path],
-    destination: Path,
-) -> bool:
-    for base in source_dirs:
-        candidate = base / destination.name
-        if candidate.exists():
-            shutil.copy2(candidate, destination)
-            return True
-    return False
-
-
-def update_current_view(region: str, snapshot_dir: Path) -> Path:
-    current_dir = get_region_current_dir(region)
-    tmp_dir = current_dir.parent / "_current_tmp"
-    if tmp_dir.exists():
-        shutil.rmtree(tmp_dir)
-    shutil.copytree(snapshot_dir, tmp_dir, dirs_exist_ok=True)
-    if current_dir.exists():
-        shutil.rmtree(current_dir)
-    tmp_dir.rename(current_dir)
-    return current_dir
-
-
-def write_manifest(
-    snapshot_dir: Path,
-    *,
-    region: str,
-    mode: MODE,
-    created_at: datetime,
-    entries: List[Dict[str, object]],
-) -> Path:
-    manifest = {
-        "region": region,
-        "mode": mode,
-        "created_at": created_at.isoformat() + "Z",
-        "snapshot": snapshot_dir.name,
-        "layers": entries,
-    }
-    manifest_path = snapshot_dir / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2))
-    return manifest_path
-
-
-def run_offline_steps(region: str) -> None:
-    commands = [
-        [sys.executable, "scripts/build_region_cache.py", "--region", region],
-        [sys.executable, "scripts/build_region_insights.py", "--region", region],
-        [sys.executable, "scripts/compute_anomalies.py", "--region", region, "--plot-format", "png"],
-        [sys.executable, "scripts/build_training_window.py", "--region", region],
-    ]
-    for cmd in commands:
-        print(f"➡️  Running {' '.join(cmd)}")
-        try:
-            subprocess_env = os.environ.copy()
-            subprocess_env.setdefault("PYTHONUNBUFFERED", "1")
-            subprocess_env.setdefault("OFFLINE_MODE", os.environ.get("OFFLINE_MODE", "0"))
-            subprocess.run(cmd, check=True, env=subprocess_env)
-        except subprocess.CalledProcessError as exc:
-            print(f"⚠️  Step failed ({' '.join(cmd)}): {exc}")
-            break
-
-
-def main() -> None:
-    args = parse_args()
-    mode = determine_mode(args)
-
-    if mode == "analyze":
-        os.environ["OFFLINE_MODE"] = "1"
-    else:
-        os.environ.pop("OFFLINE_MODE", None)
-
-    now = datetime.utcnow().replace(tzinfo=timezone.utc)
-    region = args.region
-
-    print(f"🛰  Running pipeline for {region} in {mode.upper()} mode")
-
-    profile = load_region_profile(region)
-    bbox = profile.get("region_meta", {}).get("bbox")
-    if not bbox or len(bbox) != 4:
-        raise SystemExit("Region profile missing bbox coordinates")
-
-    registry = load_layer_registry(region)
-    current_dir = get_region_current_dir(region)
-    manifest_path = current_dir / "manifest.json"
-    manifest = load_manifest(manifest_path)
-    entry_by_file = layer_entries_by_file(manifest)
-
-    previous_snapshot = manifest.get("snapshot") if isinstance(manifest, dict) else None
-    previous_dirs: List[Path] = []
-    if previous_snapshot:
-        previous_dir = get_region_cache_dir(region) / str(previous_snapshot)
-        if previous_dir.exists():
-            previous_dirs.append(previous_dir)
-    if current_dir.exists():
-        previous_dirs.append(current_dir)
-
-    states: List[LayerState] = []
-    for spec in registry.values():
-        state = build_layer_state(
-            spec,
-            entry_by_file.get(spec.cache_file),
-            current_dir / spec.cache_file,
-            now,
-        )
-        print(f" • {spec.name}: {summarize_state(state, now)}")
-        states.append(state)
-
-    check_staleness(states, allow_stale=args.allow_stale, max_staleness=args.max_staleness, mode=mode)
-
-    if mode == "analyze":
-        run_offline_steps(region)
-        return
-
-    snapshot_dir = ensure_snapshot_dir(region, now)
-    manifest_entries: List[Dict[str, object]] = []
-
-    for state in states:
-        destination = snapshot_dir / state.spec.cache_file
-        should_fetch = False
-        if mode == "bootstrap":
-            should_fetch = state.spec.required or not state.exists
-            if state.expired and not args.allow_stale:
-                should_fetch = True
-        else:  # refresh
-            if not state.exists:
-                should_fetch = True
-            elif state.expired and not args.allow_stale:
-                should_fetch = True
-
-        metadata: Dict[str, object]
-        provenance: Dict[str, str] | None = None
-
-        if should_fetch:
-            print(f"🌐 Fetching {state.spec.name} via {state.spec.fetcher}")
-            provenance = run_fetcher(
-                state.spec,
-                mode="bootstrap" if mode == "bootstrap" else "refresh",
-                destination=destination,
-                bbox=bbox,
-            )
-            fetched_at = now
-        else:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            copied = copy_previous_layer(previous_dirs, destination)
-            if not copied:
-                if state.spec.required:
-                    raise SystemExit(f"No cached data available for required layer '{state.spec.name}'")
-                else:
-                    print(f"⚠️  Optional layer '{state.spec.name}' missing; skipping")
-                    continue
-            fetched_at = state.fetched_at or now
-
-        metadata = compute_file_stats(destination)
-        expires_at = fetched_at + timedelta(days=state.spec.ttl_days)
-
-        entry = {
-            "layer": state.spec.name,
-            "cache_file": state.spec.cache_file,
-            "fetcher": state.spec.fetcher,
-            "ttl_days": state.spec.ttl_days,
-            "required": state.spec.required,
-            "fetched": should_fetch,
-            "fetched_at": fetched_at.isoformat() + "Z",
-            "expires_at": expires_at.isoformat() + "Z",
-            "source_url": state.spec.source_url,
-            **metadata,
-        }
-        if provenance:
-            entry["provenance"] = provenance
-        manifest_entries.append(entry)
-
-    manifest_path = write_manifest(snapshot_dir, region=region, mode=mode, created_at=now, entries=manifest_entries)
-    current_dir = update_current_view(region, snapshot_dir)
-    shutil.copy2(manifest_path, current_dir / "manifest.json")
-
-    print(f"🗂  Snapshot ready at {snapshot_dir}")
-
-    run_offline_steps(region)
-import sys
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List
-
-# Ensure the project root and scripts directory are importable when executed
-# as ``python scripts/run_pipeline.py``.
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = PROJECT_ROOT / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-# Local imports (deferred until after sys.path adjustments)
-from importlib import import_module
-from subprocess import CalledProcessError
-
-
-def _env_flag(name: str) -> bool:
-    """Return True when an environment variable is truthy."""
-
-    value = os.getenv(name)
-    if value is None:
-        return False
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _load_scripts():
-    """Import pipeline modules lazily to avoid hard failures during ``--help``."""
-
-    try:
-        init_region = import_module("init_region").init_region
-        fetch_all = import_module("fetch_all").main
-        build_region_cache = import_module("build_region_cache").build_region_cache
-        build_region_insights = import_module("build_region_insights").build_region_insights
-        train_region_model = import_module("train_region_model").train_region_model
-    except ModuleNotFoundError as exc:  # pragma: no cover - CLI path
-        missing = exc.name or "a required module"
-        raise SystemExit(
-            f"Missing dependency '{missing}'. "
-            "Ensure `pip install -r requirements.txt` (or the Kaggle environment) has been run "
-            "before executing the pipeline."
-        ) from exc
-
-    return (
-        init_region,
-        fetch_all,
-        build_region_cache,
-        build_region_insights,
-        train_region_model,
-    )
-
-
-def _step(
-    label: str,
-    func,
-    *args,
-    fail_fast: bool = True,
-    strict_subprocess: bool = False,
-    **kwargs,
-) -> Dict[str, str]:
-    """Run a pipeline step and capture status for later reporting."""
-
-    start = datetime.utcnow()
-    summary: Dict[str, str] = {
-        "step": label,
-        "started": start.isoformat() + "Z",
-    }
-
-    try:
-        func(*args, **kwargs)
-    except Exception as exc:  # pragma: no cover - lightweight CLI
-        summary["status"] = "error"
-        summary["message"] = str(exc)
-        if fail_fast and not (
-            isinstance(exc, CalledProcessError) and not strict_subprocess
-        ):
-            raise
-    else:
-        summary["status"] = "ok"
-    finally:
-        summary["finished"] = datetime.utcnow().isoformat() + "Z"
-
-    return summary
-
-
-def run_pipeline(
-    *,
-    region: str,
-    fetch_mode: str = "active",
-    ee_project: str | None = None,
-    tier: int = 1,
-    target: str = "ndvi_zscore",
-    freq: str = "monthly",
-    skip_fetch: bool = False,
-    skip_cache: bool = False,
-    skip_insights: bool = False,
-    skip_train: bool = False,
-    fail_fast: bool = True,
-    strict_subprocess: bool = False,
-) -> List[Dict[str, str]]:
-    """Execute the requested steps for a region and return a status report."""
-
-    (
-        init_region,
-        fetch_all,
-        build_region_cache,
-        build_region_insights,
-        train_region_model,
-    ) = _load_scripts()
-
-    report: List[Dict[str, str]] = []
-
-    # Always ensure the region workspace exists before other steps.
-    report.append(
-        _step(
-            "init_region",
-            init_region,
-            region,
-            fail_fast=fail_fast,
-            strict_subprocess=strict_subprocess,
-        )
-    )
-
-    if not skip_fetch:
-        report.append(
-            _step(
-                "fetch_all",
-                fetch_all,
-                region,
-                fetch_mode,
-                ee_project,
-                fail_fast=fail_fast,
-                strict_subprocess=strict_subprocess,
-            )
-        )
-
-    if not skip_cache:
-        report.append(
-            _step(
-                "build_region_cache",
-                build_region_cache,
-                region,
-                fail_fast=fail_fast,
-                strict_subprocess=strict_subprocess,
-            )
-        )
-
-    if not skip_insights:
-        report.append(
-            _step(
-                "build_region_insights",
-                build_region_insights,
-                region,
-                fail_fast=fail_fast,
-                strict_subprocess=strict_subprocess,
-            )
-        )
-
-    if not skip_train:
-        report.append(
-            _step(
-                "train_region_model",
-                train_region_model,
-                region,
-                tier,
-                target,
-                freq,
-                fail_fast=fail_fast,
-                strict_subprocess=strict_subprocess,
-            )
-        )
-
-    return report
-
-
-def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Run the full regional pipeline (fetch, cache, insights, train)."
-    )
-    parser.add_argument("--region", required=True, help="Region slug, e.g. hungary_farmland")
+    parser.add_argument("--offline", dest="offline", action="store_true", help="Avoid installing new dependencies.")
+    parser.add_argument("--online", dest="offline", action="store_false", help="Allow dependency installation.")
+    parser.set_defaults(offline=True)
     parser.add_argument(
-        "--mode",
-        default="active",
+        "--fetch-mode",
         choices=["active", "cached"],
-        help="Fetch mode forwarded to fetch_all.py (ignored in offline mode)",
+        default="cached",
+        help="Fetcher mode forwarded to scripts/fetch_all.py.",
     )
+    parser.add_argument("--skip-setup", action="store_true", help="Skip workspace/config setup.")
+    parser.add_argument("--skip-fetch", action="store_true", help="Skip data fetch stage.")
+    parser.add_argument("--skip-cache", action="store_true", help="Skip cache build stage.")
+    parser.add_argument("--skip-context", action="store_true", help="Skip context layer build stage.")
+    parser.add_argument("--skip-insights", action="store_true", help="Skip insight distillation stage.")
+    parser.add_argument("--skip-train", action="store_true", help="Skip model training stage.")
+    parser.add_argument("--skip-evaluate", action="store_true", help="Skip model evaluation stage.")
     parser.add_argument(
-        "--ee-project",
-        default=None,
-        help="Optional Google Earth Engine project identifier",
-    )
-    parser.add_argument(
-        "--bootstrap",
+        "--seed-samples",
         action="store_true",
-        help="Install all known dependencies and exit.",
+        help="Create synthetic fetch outputs for offline development runs.",
     )
     parser.add_argument(
-        "--analyze",
+        "--allow-fetch-failures",
         action="store_true",
-        help="Run in analysis-only mode (no new downloads; implies offline mode).",
+        help="Continue even if fetch_all.py exits with an error (useful offline).",
     )
     parser.add_argument(
-        "--allow-stale",
+        "--allow-context-failures",
         action="store_true",
-        help="Continue even if intermediate steps fail (use with caution).",
+        help="Continue even if build_context_layers.py exits with an error.",
     )
-    parser.add_argument(
-        "--skip-fetch",
-        action="store_true",
-        help="Skip the dynamic data fetch step.",
-    )
-    parser.add_argument(
-        "--skip-cache",
-        action="store_true",
-        help="Skip rebuilding the region cache.",
-    )
-    parser.add_argument(
-        "--skip-insights",
-        action="store_true",
-        help="Skip the insight generation phase.",
-    )
-    return parser.parse_args(argv)
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    if args.full:
+        args.skip_setup = False
+        args.skip_fetch = False
+        args.skip_cache = False
+        args.skip_context = False
+        args.skip_insights = False
+        args.skip_train = False
+        args.skip_evaluate = False
+        if not args.seed_samples:
+            args.seed_samples = True
+        args.offline = True
+    return args
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
 
-    if args.analyze:
-        os.environ["OFFLINE_MODE"] = "1"
+    if args.offline:
+        os.environ.setdefault("OFFLINE_MODE", "1")
 
     missing = bootstrap_dependencies(ESSENTIAL_PACKAGES)
-    if args.bootstrap:
-        if missing and os.environ.get("OFFLINE_MODE") != "1":
-            return 1
-        return 0
 
-    region = args.region or os.environ.get("REGION")
-    if not region:
-        print("❌ Region is required unless --bootstrap is provided.")
-        return 2
-    # ---------------------------------------------------------------------------
-    # Auto-initialize region if not already configured
-    # ---------------------------------------------------------------------------
-    config_path = Path("config") / f"insight.{region}.yml"
-    if not config_path.exists():
-        print(f"🧩 Region config not found for '{region}'. Launching setup wizard...")
-        subprocess.run([sys.executable, "scripts/setup_new_region.py"], check=True)
-        print("✅ Region setup complete. Re-running pipeline...")
+    if missing and any(name in missing for name in ("pandas", "numpy", "scikit-learn")):
+        return _run_offline_fallback(args.region, missing)
 
-    steps: list[Tuple[str, Sequence[str]]] = []
-    offline = os.environ.get("OFFLINE_MODE") == "1"
+    if not args.skip_setup:
+        ensure_region_setup(args.region, seed_samples=args.seed_samples)
 
-    if not (args.skip_fetch or offline or args.analyze):
-        steps.append(
-            (
-                "Fetch remote datasets",
-                build_command(
-                    "fetch_all.py",
-                    "--region",
-                    region,
-                    "--mode",
-                    args.mode,
-                    *(["--ee-project", args.ee_project] if args.ee_project else []),
-                ),
-            )
-        )
+    steps = [
+        StepConfig(
+            name="Fetch datasets",
+            command=build_command("fetch_all.py", "--region", args.region, "--mode", args.fetch_mode),
+            allow_failure=args.allow_fetch_failures or args.offline,
+            skip=args.skip_fetch,
+        ),
+        StepConfig(
+            name="Build region cache",
+            command=build_command("build_region_cache.py", "--region", args.region),
+            skip=args.skip_cache,
+        ),
+        StepConfig(
+            name="Build context layers",
+            command=build_command("build_context_layers.py", "--region", args.region),
+            allow_failure=args.allow_context_failures or args.offline,
+            skip=args.skip_context,
+        ),
+        StepConfig(
+            name="Build region insights",
+            command=build_command("build_region_insights.py", "--region", args.region),
+            skip=args.skip_insights,
+        ),
+        StepConfig(
+            name="Train regional model",
+            command=(
+                sys.executable,
+                str(SCRIPTS_DIR / "train_region_model.py"),
+                "--region",
+                args.region,
+                "--tier",
+                "1",
+                "--freq",
+                "monthly",
+                "--target",
+                "ndvi_zscore",
+            ),
+            skip=args.skip_train,
+        ),
+        StepConfig(
+            name="Evaluate model effectiveness",
+            command=(
+                sys.executable,
+                str(SCRIPTS_DIR / "evaluate_effectiveness.py"),
+                "--region",
+                args.region,
+                "--tier",
+                "1",
+                "--freq",
+                "monthly",
+                "--target",
+                "ndvi_zscore",
+            ),
+            skip=args.skip_evaluate,
+            allow_failure=False,
+        ),
+    ]
 
-    if not args.skip_cache:
-        steps.append(("Build region cache", build_command("build_region_cache.py", "--region", region)))
+    for step in steps:
+        run_step(step)
 
-    if not args.skip_insights:
-        steps.append(
-            (
-                "Generate region insights",
-                build_command("build_region_insights.py", "--region", region),
-            )
-        )
-
-    for name, command in steps:
-        run_step(name, command, allow_failure=args.allow_stale)
-
-    if steps:
-        print("\n🎉 Pipeline finished.")
-    else:
-        print("ℹ️ No steps were executed (all phases skipped or offline analyze mode).")
-
+    print("\n🎉 Pipeline complete.")
     return 0
 
 
-if __name__ == "__main__":  # pragma: no cover - script entry point
-    sys.exit(main())
-        help="Fetch mode to pass through to fetchers.",
-    )
-    parser.add_argument("--ee-project", default=None, help="Optional GEE project ID.")
-    parser.add_argument("--tier", type=int, default=1, choices=[1, 2, 3], help="Model tier")
-    parser.add_argument(
-        "--target",
-        default="ndvi_zscore",
-        help="Target variable for model training.",
-    )
-    parser.add_argument(
-        "--freq",
-        choices=["daily", "monthly"],
-        default="monthly",
-        help="Frequency for model training data.",
-    )
-    parser.add_argument("--skip-fetch", action="store_true", help="Skip dataset fetching.")
-    parser.add_argument(
-        "--skip-cache",
-        action="store_true",
-        help="Skip cache building (uses existing merged files).",
-    )
-    parser.add_argument(
-        "--skip-insights",
-        action="store_true",
-        help="Skip insight generation (requires existing insights CSV).",
-    )
-    parser.add_argument(
-        "--skip-train",
-        action="store_true",
-        help="Skip model training stage.",
-    )
-    parser.add_argument(
-        "--fail-fast",
-        action="store_true",
-        help="Abort on first error instead of continuing remaining steps.",
-    )
-    parser.add_argument(
-        "--offline",
-        action="store_true",
-        help="Run in offline mode (skip internet-dependent fetchers).",
-    )
-    parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="Re-raise subprocess failures (useful in CI).",
-    )
-    parser.add_argument(
-        "--report",
-        default=None,
-        help="Optional path to write a JSON report summarizing each step.",
-    )
-
-    return parser.parse_args(argv)
-
-
-def main(argv: List[str] | None = None) -> None:
-    args = parse_args(argv)
-
-    offline_env = _env_flag("OFFLINE_MODE")
-    offline_mode = offline_env or args.offline
-    if offline_mode:
-        print(
-            "🌐 Skipping fetchers — running in offline analysis mode. "
-            "Cached data will be used."
-        )
-
-    strict_subprocess = args.strict or (
-        os.getenv("CI", "").strip().lower() == "true"
-    )
-
-    report = run_pipeline(
-        region=args.region,
-        fetch_mode=args.mode,
-        ee_project=args.ee_project,
-        tier=args.tier,
-        target=args.target,
-        freq=args.freq,
-        skip_fetch=args.skip_fetch or offline_mode,
-        skip_cache=args.skip_cache,
-        skip_insights=args.skip_insights,
-        skip_train=args.skip_train,
-        fail_fast=args.fail_fast,
-        strict_subprocess=strict_subprocess,
-        # ---------------------------------------------------------------------------
-# Auto-initialize region if not already configured
-# ---------------------------------------------------------------------------
-config_path = Path("config") / f"insight.{region}.yml"
-if not config_path.exists():
-    print(f"🧩 Region config not found for '{region}'. Launching setup wizard...")
-    subprocess.run([sys.executable, "scripts/setup_new_region.py"], check=True)
-    print("✅ Region setup complete. Re-running pipeline...")
-
-    )
-
-    if args.report:
-        report_path = Path(args.report)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(report, indent=2))
-        print(f"📝 Report written to {report_path}")
-
-    print("\nPipeline summary:")
-    for step in report:
-        status = step.get("status", "ok")
-        msg = step.get("message", "")
-        print(f" • {step['step']}: {status}" + (f" — {msg}" if msg else ""))
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
+    raise SystemExit(main())

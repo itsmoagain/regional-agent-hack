@@ -65,4 +65,3 @@ def _coffee_stage(month: int, hemisphere: str) -> str:
 
 
 __all__ = ["build_phenology_hints"]
-diff --git a/README.md b/README.md

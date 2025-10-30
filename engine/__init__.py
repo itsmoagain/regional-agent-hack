@@ -17,4 +17,3 @@ __all__ = [
 ]
 
 __version__ = "0.1.0"
-diff --git a/engine/distill_insights.py b/engine/distill_insights.py

@@ -107,4 +107,3 @@ def _select_metric_columns(df: pd.DataFrame) -> Mapping[str, str | None]:
 
 
 __all__ = ["distill_region"]
-diff --git a/engine/model_predict.py b/engine/model_predict.py

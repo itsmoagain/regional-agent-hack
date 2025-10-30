@@ -88,6 +88,10 @@ def run_fetch(script_name: str, bbox: List[float], out_path: Path, mode: str) ->
         print(f"⚠️  Missing script: {script_name}")
         return False
 
+    if mode == "cached" and out_path.exists():
+        print(f"⏭️  Cached dataset already present → {out_path.name}")
+        return True
+
     cmd = [
         sys.executable,
         str(script_path),
