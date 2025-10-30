@@ -44,21 +44,27 @@ def _cache_path(region: str) -> Path:
     return region_dir / CACHE_NAME
 
 
-def _build_insight_path(region: str, freq: str) -> Path:
-    region_dir = get_region_current_dir(region)
+def _build_insight_path(region: str, freq: str = "monthly") -> Path:
+    """Return the expected path to the insight dataset; fall back gracefully if monthly missing."""
+    data_dir = Path("data") / region / "current"
     candidates = [
-        region_dir / f"insights_{freq}.csv",
-        region_dir / f"insight_{freq}.csv",
-        region_dir / "insights_monthly.csv",
-        region_dir / "insight_monthly.csv",
-        region_dir / "distilled_summary.csv",
+        data_dir / "insights_monthly.csv",
+        data_dir / "insight_monthly.csv",
+        data_dir / "distilled_summary.csv",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
+    for path in candidates:
+        if path.exists():
+            return path
+
+    # --- fallback for daily insights ---
+    daily_fallback = data_dir / "insights_daily.csv"
+    if daily_fallback.exists():
+        print(f"⚙️ Fallback to daily insights → {daily_fallback}")
+        return daily_fallback
+
     raise FileNotFoundError(
-        f"No insight dataset found for {region}. Checked: "
-        + ", ".join(str(c) for c in candidates)
+        f"No insight dataset found for {region}. "
+        f"Checked: {', '.join(str(p) for p in candidates)} and {daily_fallback}"
     )
 
 
