@@ -651,31 +651,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     for step in steps:
         run_step(step)
 
-print("\n🎉 Pipeline completed successfully for", region)
-print("📊 Outputs saved to:", f"outputs/{region}/")
-print("🧠 Model artifacts saved to:", f"models/{region}_rf.pkl")
+    print(f"\n🎉 Pipeline completed successfully for {args.region}")
+    print(f"📊 Outputs saved to: outputs/{args.region}/")
+    print(f"🧠 Model artifacts saved to: models/{args.region}_rf.pkl")
 
-print("""
-💡 Next Steps:
-- Add or update local practice logs in `data/<region>/practice_logs/`
-  to help the model learn from real field data.
-- Re-run `train_region_model.py` to retrain on updated logs.
-- Then re-run `run_pipeline.py` to see improved, context-aware insights.
-""")
-print("\n💬 Example insight from latest run:")
-try:
-    import pandas as pd
-    df = pd.read_csv(f"outputs/{region}/distilled_summary.csv")
-    example = df.iloc[-1]["insight_text"]
-    print(f"🧠 {example}")
-except Exception:
-    print("🧠 (Insight text unavailable — check distilled_summary.csv)")
+    print("\n💬 Example insight from latest run:")
+    try:
+        import pandas as pd
+        df = pd.read_csv(f"outputs/{args.region}/distilled_summary.csv")
+        example = df.iloc[-1]["insight_text"]
+        print(f"🧠 {example}")
+    except Exception:
+        print("🧠 (Insight text unavailable — check distilled_summary.csv)")
 
-print("""
+    print("""
 💡 Next Steps:
-- Add recent practice logs in `data/<region>/practice_logs/` (e.g., planting, irrigation, composting).
-- Re-run training with `python scripts/train_region_model.py --region <region>`
-  to let the model learn from your field updates and refine future insights.
+- Add or update local practice logs in `data/<region>/practice_logs/` (e.g., planting, irrigation, composting).
+- Retrain models with `python scripts/train_region_model.py --region <region>` to incorporate field updates.
+- Re-run `run_pipeline.py` to generate refined, context-aware insights.
 """)
 
     # ✅ Return success code at the end of main()
