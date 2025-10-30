@@ -96,11 +96,15 @@ def fetch_openmeteo_phenology(lat: float, lon: float, crop: str, out_dir: Path) 
         "rice": 10, "coffee": 12,
         "cotton": 15, "sorghum": 8,
         "vegetables": 8, "tomato": 10,
-        "generic_crop": 10
+        "cowpea": 10, "generic_crop": 10
     }
-   crop_name = crop["name"] if isinstance(crop, dict) else crop
-   base_temp = base_temp_map.get(str(crop_name).lower(), 10)
 
+    # ✅ FIX: Safely handle dict crop inputs (prevents AttributeError)
+    if isinstance(crop, dict):
+        crop_name = crop.get("name", "unknown")
+    else:
+        crop_name = str(crop)
+    base_temp = base_temp_map.get(crop_name.lower(), 10)
 
     try:
         r = requests.get(url, params=params, timeout=60)
