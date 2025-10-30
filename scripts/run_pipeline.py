@@ -777,6 +777,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not region:
         print("❌ Region is required unless --bootstrap is provided.")
         return 2
+    # ---------------------------------------------------------------------------
+    # Auto-initialize region if not already configured
+    # ---------------------------------------------------------------------------
+    config_path = Path("config") / f"insight.{region}.yml"
+    if not config_path.exists():
+        print(f"🧩 Region config not found for '{region}'. Launching setup wizard...")
+        subprocess.run([sys.executable, "scripts/setup_new_region.py"], check=True)
+        print("✅ Region setup complete. Re-running pipeline...")
 
     steps: list[Tuple[str, Sequence[str]]] = []
     offline = os.environ.get("OFFLINE_MODE") == "1"
@@ -903,6 +911,15 @@ def main(argv: List[str] | None = None) -> None:
         skip_train=args.skip_train,
         fail_fast=args.fail_fast,
         strict_subprocess=strict_subprocess,
+        # ---------------------------------------------------------------------------
+# Auto-initialize region if not already configured
+# ---------------------------------------------------------------------------
+config_path = Path("config") / f"insight.{region}.yml"
+if not config_path.exists():
+    print(f"🧩 Region config not found for '{region}'. Launching setup wizard...")
+    subprocess.run([sys.executable, "scripts/setup_new_region.py"], check=True)
+    print("✅ Region setup complete. Re-running pipeline...")
+
     )
 
     if args.report:
