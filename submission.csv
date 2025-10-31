@@ -1,0 +1,4 @@
+region,greenai_score,evidence_path
+jamaica_bluemountains,39.433439,outputs\jamaica_bluemountains\distilled_summary.csv
+hungary_transdanubia,9.679638,outputs\hungary_transdanubia\distilled_summary.csv
+houston_farmland,27.984622,outputs\houston_farmland\distilled_summary.csv
